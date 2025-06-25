@@ -1,0 +1,2 @@
+FretLight_modX_no_foil_5_stabConv.root;419.143;19.3479; 
+FretLight_modX_wi_foil_2_stabConv.root;31.4298;10.1905; 

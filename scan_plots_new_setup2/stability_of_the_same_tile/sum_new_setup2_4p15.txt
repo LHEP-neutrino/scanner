@@ -1,0 +1,3 @@
+FACL_4p15_2_7_stabConv.root;8375.98;5.1271; 
+FACL_4p15_2_8_stabConv.root;8379.21;5.2439; 
+FACL_4p15_2_9_stabConv.root;8378.19;5.18922; 

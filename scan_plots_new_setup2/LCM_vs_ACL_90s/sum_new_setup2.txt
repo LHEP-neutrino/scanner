@@ -1,0 +1,9 @@
+FACL_4p04_2_3_stabConv.root;1403.72;2.1074; 
+FACL_4p15_2_4_stabConv.root;438.228;1.66754; 
+FACL_4p06_2_4_stabConv.root;410.144;1.49112; 
+FACL_4p19_2_3_stabConv.root;569.39;1.74111; 
+FACL_4p11_2_6_stabConv.root;579.222;1.77196; 
+FLCM_13_14_15_2_1_stabConv.root;8905.39;4.27761; 
+FLCM_16_17_18_2_1_stabConv.root;8724.26;4.1648; 
+FLCM_19_20_21_2_1_stabConv.root;8882.53;4.003; 
+FLCM_25_26_27_2_4_stabConv.root;8680.18;4.37477; 

@@ -1,0 +1,8 @@
+Fret_6p_V1_1_stabConv.root;566.826;1.17263; 
+Fret_6p_V2_1_stabConv.root;545.928;1.11446; 
+Fret_6p_V3_1_stabConv.root;616.513;1.2052; 
+Fret_3p_V1_1_stabConv.root;384.763;0.913122; 
+Fret_3p_V2_1_stabConv.root;384.762;0.947129; 
+Fret_0p_V1_1_stabConv.root;319.646;0.876342; 
+Fret_0p_V2_1_stabConv.root;291.372;0.823813; 
+Fret_0p_foil_w_tpbdichroic_1_stabConv.root;527.026;1.07204; 
