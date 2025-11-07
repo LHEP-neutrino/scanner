@@ -1,2 +1,0 @@
-//before and after coldtest: - good
-//const char* files[]= {"FACL_4p05_2_3_stabConv.root","FACL_4p05_2_4_stabConv.root"}; //_3 is before

@@ -1,8 +1,0 @@
-//with different mirrors: edge mirrors: no, dichroic, normal (total) [no back mirror], (dichoic in the end again) -- good
-const char* files[]={"FACL_4p01_2_1_stabConv.root", "FACL_4p01_2_2_stabConv.root", "FACL_4p01_2_3_stabConv.root", "FACL_4p01_2_6_stabConv.root"};
-//const char* files[]={"FACL_4p19_2_1_stabConv.root", "FACL_4p19_2_2_stabConv.root", "FACL_4p19_2_4_stabConv.root", "FACL_4p19_2_6_stabConv.root"};
-//const char* files[]={"FACL_4p24_2_1_stabConv.root", "FACL_4p24_2_4_stabConv.root", "FACL_4p24_2_5_stabConv.root", "FACL_4p24_2_7_stabConv.root"};
-
-//with different mirrors: edge mirrors: dichroic, normal (total) [no back mirror], (dichoic in the end again) -- good
-//const char* files[]={"FACL_4p15_2_2_stabConv.root", "FACL_4p15_2_5_stabConv.root", "FACL_4p15_2_7_stabConv.root"};
-

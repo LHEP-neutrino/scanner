@@ -1,4 +1,0 @@
-FACL_4p24_2_1_stabConv.root;5783.74;4.80904; 
-FACL_4p24_2_4_stabConv.root;9475.59;5.53061; 
-FACL_4p24_2_5_stabConv.root;10922.1;5.74725; 
-FACL_4p24_2_7_stabConv.root;9151.97;5.22275; 

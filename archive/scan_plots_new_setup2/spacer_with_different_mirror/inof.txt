@@ -1,4 +1,0 @@
-//compare impact of spacer: without mirror, with mirror, (with mirror again if available):
-//const char* files[]={"FACL_4p15_2_10_stabConv.root","FACL_4p15_2_11_stabConv.root","FACL_4p15_2_12_stabConv.root"};
-const char* files[]={"FACL_4p19_2_8_stabConv.root","FACL_4p19_2_7_stabConv.root"};
-//const char* files[]={"FACL_4p02_2_3_stabConv.root","FACL_4p02_2_4_stabConv.root"};
