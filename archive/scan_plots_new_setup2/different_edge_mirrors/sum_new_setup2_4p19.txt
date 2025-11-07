@@ -1,0 +1,4 @@
+FACL_4p19_2_1_stabConv.root;6306.37;4.94665; 
+FACL_4p19_2_2_stabConv.root;10031;5.92371; 
+FACL_4p19_2_4_stabConv.root;11657.8;5.71719; 
+FACL_4p19_2_6_stabConv.root;10180.1;5.38486; 

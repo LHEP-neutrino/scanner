@@ -1,0 +1,7 @@
+Fret_6p_V1_1_stabConv.root;566.544;1.17204; 
+Fret_6p_V2_1_stabConv.root;545.657;1.1139; 
+Fret_6p_V3_1_stabConv.root;616.207;1.2046; 
+Fret_3p_V1_1_stabConv.root;384.572;0.912669; 
+Fret_3p_V2_1_stabConv.root;384.571;0.946659; 
+Fret_0p_V1_1_stabConv.root;319.488;0.875908; 
+Fret_0p_V2_1_stabConv.root;291.227;0.823405; 
