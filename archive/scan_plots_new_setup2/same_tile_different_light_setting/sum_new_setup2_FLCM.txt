@@ -1,0 +1,4 @@
+FLCM_13_14_15_2_1_stabConv.root;55294;26.5599; 
+FLCM_13_14_15_2_2_stabConv.root;49887.2;8.6714; 
+FLCM_13_14_15_2_3_stabConv.root;36791.5;4.40196; 
+FLCM_13_14_15_2_4_stabConv.root;29106.5;3.69009; 

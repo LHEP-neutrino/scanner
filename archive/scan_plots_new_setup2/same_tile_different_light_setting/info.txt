@@ -1,0 +1,6 @@
+//compare same LCM for different Light seetings - good 90, 120, 150, 180
+//const char* files[]={"FLCM_13_14_15_2_1_stabConv.root","FLCM_13_14_15_2_2_stabConv.root","FLCM_13_14_15_2_3_stabConv.root","FLCM_13_14_15_2_4_stabConv.root"};
+
+//compare same ACL for different Light seetings - good 90, 120, 150, 180, 255
+const char* files[]={"FACL_4p04_2_3_stabConv.root","FACL_4p04_2_4_stabConv.root","FACL_4p04_2_5_stabConv.root",\
+"FACL_4p04_2_6_stabConv.root","FACL_4p04_2_2_stabConv.root"};
