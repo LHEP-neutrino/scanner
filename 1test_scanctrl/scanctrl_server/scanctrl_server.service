@@ -1,0 +1,12 @@
+[Unit]
+Description=Scanner Control Server API
+After=network.target
+
+[Service]
+User=lhep
+ExecStart=/usr/bin/scanctrl-server start
+Restart=always
+WorkingDirectory=/home/lhep
+
+[Install]
+WantedBy=multi-user.target

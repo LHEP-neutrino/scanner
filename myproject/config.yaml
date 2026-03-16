@@ -1,0 +1,4 @@
+AppHost: "0.0.0.0"
+AppPort: 5000
+API_KEY: "your_api_key_here"
+data_path: "/path/to/data"

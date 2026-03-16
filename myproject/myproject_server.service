@@ -1,0 +1,15 @@
+[Unit]
+Description=MyProject Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -m myproject.server
+Restart=always
+StandardOutput=journal
+StandardError=journal
+User=myproject
+Environment=MYPROJECT_CONFIG=/etc/myproject/config.yaml
+
+[Install]
+WantedBy=multi-user.target
