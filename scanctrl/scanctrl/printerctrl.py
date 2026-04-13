@@ -1,6 +1,7 @@
 import serial
 import click
 from typing import Optional
+import time
 
 class PrinterCtrl:
     """
@@ -32,8 +33,7 @@ class PrinterCtrl:
                 timeout=self.timeout
             )
             # Small delay to let the hardware settle
-            import time
-            time.sleep(0.5)
+            time.sleep(1)
             
             if not self.ports.is_open:
                 raise ConnectionError("Failed to open serial port.")
@@ -42,10 +42,19 @@ class PrinterCtrl:
 
             # Initialization Sequence
             click.echo("Performing initialization sequence...")
+            #self._send_command('\r\n\r\n') # Hit enter to wake up the printer
+            #self.ports.flushInput() # Flush startup test in serial input
+            #self._send_command('G71\n')
             self._send_command('G21\n') # Metric units
             self._send_command('G90\n') # Absolute positioning
             self._send_command('G28\n') # Home all axes
-            
+
+            click.echo(f" in_waiting: {self.ports.in_waiting}")
+            i:int = 0
+            while self.ports.in_waiting > 0:
+                click.echo(f"loop {i}: {self.ports.readline().decode('utf-8', errors='ignore').strip()}")
+                i += 1
+
             # Go to initial position
             click.echo(f"Moving to initial position: {self.init_x}, {self.init_y}, {self.init_z}")
             self.go_to(self.init_x, self.init_y, self.init_z)
@@ -88,8 +97,10 @@ class PrinterCtrl:
             raise RuntimeError("Serial port is not open. Re-initialize or check connection.")
 
         # Send command
+        click.echo(f"Send command {command}")
         self.ports.write(command.encode())
         
+        time.sleep(1)
         # Wait for response with timeout
         try:
             response_bytes = self.ports.readline()
