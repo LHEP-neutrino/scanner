@@ -40,13 +40,14 @@ def run_scanner(config_file):
     cl.run_scanner(config_file)
 
 @cli.command(hidden=True)
-def debug_printerctrl():
+@click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
+def debug_printerctrl(config_file):
     """
     Command to debug the printer controller.
 
     Usage: scanctrl debug-printerctrl
     """
-    cl.debug_printerCtrl()
+    cl.debug_printerCtrl(config_file)
 
 if __name__ == '__main__':
     cli()
