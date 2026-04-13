@@ -1,0 +1,16 @@
+{
+    "printer": {
+        "usb_port": "/dev/ttyUSB0",
+        "baudrate": 115200,
+        "init_pos_LT": [360, 360, 20]
+    },
+    "supplr" : {
+        "host": "localhost",
+        "port": 54321
+    },
+    "arduino": {
+        "port": "/dev/ttyUSB1",
+        "baudrate": 9600
+    },
+    "data_folder" : "/home/lhep/nico_test/data"
+}

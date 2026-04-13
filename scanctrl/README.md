@@ -1,6 +1,6 @@
 # MyProject CLI
 
-A simple Python command-line tool built with Click, providing `debug` and `print` subcommands with auto-completion support.
+A simple Python command-line tool used to run the scanner.
 
 ## Requirements
 
