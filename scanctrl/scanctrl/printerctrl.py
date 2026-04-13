@@ -42,7 +42,7 @@ class PrinterCtrl:
 
             # Initialization Sequence
             click.echo("Performing initialization sequence...")
-            #self._send_command('\r\n\r\n') # Hit enter to wake up the printer
+            self._send_command('\r\n\r\n') # Hit enter to wake up the printer
             #self.ports.flushInput() # Flush startup test in serial input
             #self._send_command('G71\n')
             click.echo(f"0: in_waiting: {self.ports.in_waiting}")
@@ -51,7 +51,7 @@ class PrinterCtrl:
             self._send_command('G28\n') # Home all axes
 
             click.echo(f"1: in_waiting: {self.ports.in_waiting}")
-            self._wait_for_idle() # Wait for homing to complete
+            #self._wait_for_idle() # Wait for homing to complete
 
             # Go to initial position
             click.echo(f"Moving to initial position: {self.init_x}, {self.init_y}, {self.init_z}")
@@ -72,6 +72,7 @@ class PrinterCtrl:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager and ensure port is closed."""
+        self.go_to(350, 350, 20)
         self._close()
         return False # Let exceptions propagate if needed
 
@@ -137,9 +138,9 @@ class PrinterCtrl:
             # This blocks until a line is received or timeout occurs
             response_bytes = self.ports.readline()
             
-            if not response_bytes:
-                click.echo(f"Warning: Timeout waiting for response to: {command.strip()}")
-                return "TIMEOUT"
+            #if not response_bytes:
+            #    click.echo(f"Warning: Timeout waiting for response to: {command.strip()}")
+            #    return "TIMEOUT"
             
             primary_response = response_bytes.decode('utf-8', errors='ignore').strip()
             click.echo(f"Cmd: {command.strip()} -> Resp: {primary_response}")
@@ -147,6 +148,7 @@ class PrinterCtrl:
             # Check for immediate errors in the first response
             if "error" in primary_response.lower() or "alarm" in primary_response.lower():
                 raise RuntimeError(f"Printer Error: {primary_response}")
+            
 
             # 3. DRAIN THE BUFFER
             # Loop while there are bytes waiting to be read
@@ -155,10 +157,11 @@ class PrinterCtrl:
             
             # We use a small internal timeout (e.g., 0.1s) to check if data is coming
             # without blocking indefinitely if the printer is silent.
-            while self.ports.in_waiting > 0:
+            wait = 0
+            while True: #self.ports.in_waiting > 0:
                 # Read a line. If in_waiting > 0, this returns immediately (non-blocking for this specific read)
                 # However, to be safe against a stream of data, we use a short timeout for this specific read
-                self.ports.timeout = 0.1 
+                #self.ports.timeout = 20 
                 line_bytes = self.ports.readline()
                 
                 if line_bytes:
@@ -166,17 +169,27 @@ class PrinterCtrl:
                     if line:
                         buffer_messages.append(line)
                         click.echo(f"Buffer Msg: {line}")
+                        wait = 0
                 else:
                     # No line received within 0.1s, likely buffer is empty or closed
-                    break
+                    if wait == 3:
+                        break
+                    else:
+                        click.echo(f"waiting for more messages ({wait})")
+                        time.sleep(1)
+                        wait += 1 
+                        #break
+
             
             # Restore the main timeout for future operations
-            self.ports.timeout = self.timeout
+            # self.ports.timeout = self.timeout
             
             if buffer_messages:
                 click.echo(f"  [Drained {len(buffer_messages)} extra messages]")
             else:
                 click.echo("  [Buffer was empty after primary response]")
+            
+            click.echo(f"    Buffer size after command: {self.ports.in_waiting}")
 
             return primary_response
 
@@ -198,7 +211,7 @@ class PrinterCtrl:
             try:
                 if self.ports.in_waiting > 0:
                     response = self.ports.readline().decode('utf-8', errors='ignore').strip()
-                    
+                    click.echo(f" while waiting for idle: {response}")
                     if response == 'ok':
                         # Small extra delay to ensure buffer is truly empty
                         time.sleep(0.2) 
@@ -238,6 +251,10 @@ class PrinterCtrl:
         self._send_command(g_code)
         
         # Update internal state
+        wait_time = abs(self.current_x-x) + abs(self.current_y-y) + abs(self.current_z-z)
+        print(f" current: {self.current_x, self.current_y, self.current_z}; aim: {x,y,z}; sum of coordinate distance difference {wait_time}; time waiting: {min(int(wait_time/50), 15)}")
+        time.sleep(min(int(wait_time/50), 15))
+        print("finished waiting")
         self.current_x, self.current_y, self.current_z = x, y, z
         return
 

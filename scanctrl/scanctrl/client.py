@@ -183,13 +183,11 @@ def debug_printerCtrl(config_file):
         try:
             with PrinterCtrl(config["printer"]) as printer:
                 # Move to a test position 
-                x, y, z = config["printer"]["init_pos_LT"]
-                
-                x-=10
-                y-=10
+                x, y, z = 200, 100, 20
 
                 click.echo(f"DEBUG: Moving to X:{x}, Y:{y}, Z:{z}")
                 printer.go_to(x, y, z)
+                printer.go_to(200,200,20)
                 click.echo("DEBUG: Move complete.")
         except Exception as e:
             click.echo(f"DEBUG Error: {e}")
