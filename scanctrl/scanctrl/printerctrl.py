@@ -32,7 +32,7 @@ class PrinterCtrl:
                 config["baudrate"], 
                 timeout=self.timeout
             )
-            # Small delay to let the hardware settle (mandatory otherwise doesn't work)
+            # Small delay to let the hardware settle (mandatory otherwise the first command often gets lost)
             time.sleep(1)
             
             if not self.ports.is_open:
@@ -43,18 +43,12 @@ class PrinterCtrl:
             # Initialization Sequence
             click.echo("Performing initialization sequence...")
             self._send_command('\r\n\r\n') # Hit enter to wake up the printer
-            #self.ports.flushInput() # Flush startup test in serial input
-            #self._send_command('G71\n')
-            click.echo(f"0: in_waiting: {self.ports.in_waiting}")
             self._send_command('G21\n') # Metric units
             self._send_command('G90\n') # Absolute positioning
             self._send_command('G28\n') # Home all axes
 
-            click.echo(f"1: in_waiting: {self.ports.in_waiting}")
-            #self._wait_for_idle() # Wait for homing to complete
-
             # Go to initial position
-            click.echo(f"Moving to initial position: {self.init_x}, {self.init_y}, {self.init_z}")
+            click.echo(f"Moving to initial position.")
             self.go_to(self.init_x, self.init_y, self.init_z)
             
             click.echo("Initialization complete. Printer ready.")
@@ -87,147 +81,71 @@ class PrinterCtrl:
             self.ports.close()
             self.ports = None
 
-    # def _send_command(self, command: str) -> str:
-    #     """
-    #     Send a G-code command and wait for a response.
-    #     Returns the response string (stripped) or raises an error if response indicates failure.
-    #     """
-    #     if not self.ports or not self.ports.is_open:
-    #         raise RuntimeError("Serial port is not open. Re-initialize or check connection.")
-
-    #     # Send command
-    #     click.echo(f"Send command {command}")
-    #     self.ports.write(command.encode())
-        
-    #     time.sleep(1)
-    #     # Wait for response with timeout
-    #     try:
-    #         response_bytes = self.ports.readline()
-            
-    #         # Check if we timed out (empty bytes)
-    #         if not response_bytes:
-    #             click.echo(f"Warning: No response received for command: {command.strip()}")
-    #             return "TIMEOUT"
-            
-    #         response = response_bytes.decode('utf-8', errors='ignore').strip()
-    #         click.echo(f"Response: {response}")
-            
-    #         # Basic error checking
-    #         if "error" in response.lower() or "alarm" in response.lower():
-    #             raise RuntimeError(f"Printer Error: {response}")
-                
-    #         return response
-
-    #     except serial.SerialException as e:
-    #         click.echo(f"Serial communication error: {e}")
-    #         raise
-
     def _send_command(self, command: str) -> str:
         """
-        Send a G-code command, read the immediate response, 
-        AND drain all remaining messages from the buffer before returning.
+        Send a G-code command and wait until the printer responds with 'ok'.
+        Reads and prints all intermediate messages (busy, echo, etc.) in between.
         """
         if not self.ports or not self.ports.is_open:
             raise RuntimeError("Serial port is not open.")
 
         # 1. Send the command
         self.ports.write(command.encode())
+        click.echo(f"Sent: {command.strip()}")
         
         try:
-            # 2. Read the PRIMARY response (e.g., "ok")
-            # This blocks until a line is received or timeout occurs
-            response_bytes = self.ports.readline()
-            
-            #if not response_bytes:
-            #    click.echo(f"Warning: Timeout waiting for response to: {command.strip()}")
-            #    return "TIMEOUT"
-            
-            primary_response = response_bytes.decode('utf-8', errors='ignore').strip()
-            click.echo(f"Cmd: {command.strip()} -> Resp: {primary_response}")
-            
-            # Check for immediate errors in the first response
-            if "error" in primary_response.lower() or "alarm" in primary_response.lower():
-                raise RuntimeError(f"Printer Error: {primary_response}")
-            
-
-            # 3. DRAIN THE BUFFER
-            # Loop while there are bytes waiting to be read
-            click.echo("Draining remaining buffer messages...")
-            buffer_messages = []
-            
-            # We use a small internal timeout (e.g., 0.1s) to check if data is coming
-            # without blocking indefinitely if the printer is silent.
-            wait = 0
-            while True: #self.ports.in_waiting > 0:
-                # Read a line. If in_waiting > 0, this returns immediately (non-blocking for this specific read)
-                # However, to be safe against a stream of data, we use a short timeout for this specific read
-                #self.ports.timeout = 20 
-                line_bytes = self.ports.readline()
+            # 2. Loop until we get 'ok' or timeout/error
+            # We use a counter to prevent infinite loops if the printer stops responding
+            wait_counter = 0
+            while True:
+                # Read a line (blocks until data or timeout)
+                response_bytes = self.ports.readline()
                 
-                if line_bytes:
-                    line = line_bytes.decode('utf-8', errors='ignore').strip()
-                    if line:
-                        buffer_messages.append(line)
-                        click.echo(f"Buffer Msg: {line}")
-                        wait = 0
-                else:
-                    # No line received within 0.1s, likely buffer is empty or closed
-                    if wait == 3:
-                        break
+                # Check for timeout (empty bytes)
+                if not response_bytes:
+                    if wait_counter > 2:  # After 5 consecutive timeouts, give up
+                        click.echo(f"Warning: Timeout waiting for response to: {command.strip()}")
+                        click.echo(f"DEBUG: Bytes in waiting: {self.ports.in_waiting}")
+                        return "TIMEOUT"
+                    click.echo(f"Warning: No response received yet for: {command.strip()} (waited {wait_counter+1} times)")
+                    time.sleep(0.5)  # Wait a bit before trying again
+                    wait_counter += 1
+                    continue
+                
+                response = response_bytes.decode('utf-8', errors='ignore').strip()
+                click.echo(f"Response: {response}")
+                
+                # A. Success: Command finished
+                if response == "ok":
+                    click.echo("  [Command completed successfully]")
+                    click.echo(f"DEBUG: Bytes in waiting: {self.ports.in_waiting}")
+                    return "ok"
+                
+                # B. Error: Something went wrong
+                if "error" in response.lower() or "alarm" in response.lower():
+                    raise RuntimeError(f"Printer Error: {response}")
+                
+                # C. Busy or Status: Printer is still working or echoing info
+                # We print it and continue the loop to wait for 'ok'
+                if "busy" in response.lower() or response.startswith("echo:"):
+                    if "busy" in response.lower():
+                        click.echo(f"  [Printer is busy, waiting...: {response}]")
                     else:
-                        click.echo(f"waiting for more messages ({wait})")
-                        time.sleep(1)
-                        wait += 1 
-                        #break
-
-            
-            # Restore the main timeout for future operations
-            # self.ports.timeout = self.timeout
-            
-            if buffer_messages:
-                click.echo(f"  [Drained {len(buffer_messages)} extra messages]")
-            else:
-                click.echo("  [Buffer was empty after primary response]")
-            
-            click.echo(f"    Buffer size after command: {self.ports.in_waiting}")
-
-            return primary_response
+                        click.echo(f"  [Status update: {response}]")
+                    continue
+                
+                # D. Unexpected: Print and keep waiting
+                # Some firmware versions send weird messages before 'ok'
+                click.echo(f"  [Unexpected response, waiting for 'ok': {response}]")
 
         except serial.SerialException as e:
             click.echo(f"Serial communication error: {e}")
             raise
+        except Exception as e:
+            click.echo(f"Unexpected error: {e}")
+            raise
 
-    def _wait_for_idle(self):
-        """
-        Blocks execution until the printer is fully idle.
-        Ensures physical movement (like homing) is complete.
-        """
-        click.echo("  [Waiting for printer to finish current action...]")
-        
-        max_wait = 30.0 
-        start_time = time.time()
-        
-        while time.time() - start_time < max_wait:
-            try:
-                if self.ports.in_waiting > 0:
-                    response = self.ports.readline().decode('utf-8', errors='ignore').strip()
-                    click.echo(f" while waiting for idle: {response}")
-                    if response == 'ok':
-                        # Small extra delay to ensure buffer is truly empty
-                        time.sleep(0.2) 
-                        if self.ports.in_waiting == 0:
-                            click.echo("  [Printer is Idle]")
-                            return
-                    elif "error" in response.lower() or "alarm" in response.lower():
-                        raise RuntimeError(f"Printer Error during wait: {response}")
-                
-                time.sleep(0.1)
-                
-            except serial.SerialException:
-                break
-        
-        click.echo("Warning: Timeout waiting for printer to become idle.")
-
+    
 
     #-----------------------
     # Public API functions
@@ -245,17 +163,19 @@ class PrinterCtrl:
         if z < 19:
             raise click.ClickException(f"Z coordinate ({z}) out of range! Must be >= 19")
 
-        # Construct G0 command (Rapid Move)
+        # Construct G0 command (Rapid Move) and send it
         g_code = f'G0 X{x} Y{y} Z{z}\n'
-        
         self._send_command(g_code)
         
-        # Update internal state
-        wait_time = abs(self.current_x-x) + abs(self.current_y-y) + abs(self.current_z-z)
-        print(f" current: {self.current_x, self.current_y, self.current_z}; aim: {x,y,z}; sum of coordinate distance difference {wait_time}; time waiting: {min(int(wait_time/50), 15)}")
-        time.sleep(min(int(wait_time/50), 15))
-        print("finished waiting")
+        # Wait time based on the travel distance
+        max_diff = max(abs(self.current_x-x), abs(self.current_y-y), abs(self.current_z-z))
+        wait_time = min(int(max_diff/5), 15)
+        print(f"DEBUG: current: {self.current_x, self.current_y, self.current_z}; aim: {x,y,z}; max diff: {max_diff}; time waiting: {wait_time}")
+        time.sleep(wait_time)
+
+        # Update the current position
         self.current_x, self.current_y, self.current_z = x, y, z
+        print(f"Printer head moved to ({x}, {y}, {z})")
         return
 
     def motors_off(self):
