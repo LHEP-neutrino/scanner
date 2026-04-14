@@ -4,14 +4,13 @@ Commands for the scanner module.
 import click
 import fcntl
 import os
-import sys
 import json
 
 import time
 
 
-
 from scanctrl.printerctrl import PrinterCtrl
+from logger import logger, update_log_levels  # Import the global logger and log level update function
 
 LOCK_FILE = "/tmp/scanner.lock"
 
@@ -37,9 +36,10 @@ class ScannerLock:
         self.lock_fd = open(self.lock_path, "w")
         try:
             fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        except BlockingIOError as e:
             self.lock_fd.close()
-            raise click.ClickException("The scanner is already running, check your other terminals.")
+            logger.error(f"The scanner is already running, check your other terminals: {e}")
+            raise e
         return self
 
     def __exit__(self, *args):
@@ -51,49 +51,64 @@ class ScannerLock:
 # Helper functions
 #-----------------------
 
-def _full_scan(self):
-        """
-        Perform a full scan.
-        """
-        output = "Performing the scan"
-        output = output.ljust(60-len(output), '.')
-        click.echo(output, nl=False)
-        time.sleep(3)
-        output = ".....Performing the scan"
-        output = output.ljust(60-len(output), '.')
-        click.echo(f"\r{output}", nl=False)
-        time.sleep(3)
-        output = "..........Performing the scan"
-        output = output.ljust(60-len(output), '.')
-        click.echo(f"\r{output}", nl=False)
-        time.sleep(3)
-        output = "Scann finished."
-        # print(len(output))
-        output = output.ljust(60-len(output), '.')
-        click.echo(f"\r{output}")
-
-
-def _singlePt_scan(self, x, y, z):
+def _load_config(config_file):
     """
-    Perform a single point scan at the specified position.
-    """
+    Load the configuration from a JSON file.
 
+    Args:
+        config_file (str): Path to the configuration file.
+
+    Returns:
+        dict: The loaded configuration.
+    """
+    # 1. Load configuration
+    try:
+        with open(config_file, 'r') as file:
+            config = json.load(file)
+
+    except FileNotFoundError as e:
+        logger.error(f"Config file not found: {e}")
+        raise e
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in config file: {e}")
+        raise e
+
+    
+    # 2. Check for log level in config
+    logging = config.get("logging") if config.get("logging") else None
+
+    if logging:
+        update_log_levels(logging)
+    else:
+        logger.info("No logging configuration found in config file. Using default INFO level.")  
+
+
+    return config
+
+def _full_scan(printerctrl):
+    """
+    Perform a full scan.
+    """
+    output = "Performing the scan"
+    output = output.ljust(60-len(output), '.')
+    click.echo(output, nl=False)
+    time.sleep(3)
+    output = ".....Performing the scan"
+    output = output.ljust(60-len(output), '.')
+    click.echo(f"\r{output}", nl=False)
+    time.sleep(3)
+    output = "..........Performing the scan"
+    output = output.ljust(60-len(output), '.')
+    click.echo(f"\r{output}", nl=False)
+    time.sleep(3)
+    output = "Scann finished."
+    # print(len(output))
+    output = output.ljust(60-len(output), '.')
+    click.echo(f"\r{output}")
 
 #-----------------------
 # CLI Commands
 #-----------------------
-
-def print_text(text):
-    """
-    Print the provided text to the terminal.
-
-    Args:
-        text (str): The text to print.
-    """
-    with ScannerLock(LOCK_FILE):
-        click.echo(text)
-        time.sleep(5)
-        click.echo("Done!")
 
 def run_scanner(config_file):
     """
@@ -103,22 +118,17 @@ def run_scanner(config_file):
         config_file (str): Path to the configuration file.
     """
     with ScannerLock(LOCK_FILE):
-        click.echo(f"Running scanner with config: {config_file}")
+        logger.info(f"Running scanner with config: {config_file}")
+        
         # Load configuration
-        with open(config_file, 'r') as file:
-            config = json.load(file)
-        # print(config) 
-
-        # Check config file
-        data_folder = config.get("data_folder")
-        if not os.path.exists(data_folder):
-            raise click.ClickException("Config file has an invalid 'data_folder' path.")
+        config = _load_config(config_file)
                 
         # Initialize printer controller with config
         with PrinterCtrl(config["printer"]) as printer:
         
             # Check with user that the VGA is set correctly
             while not click.confirm("Is the VGA gain set correctly (12dB)?"):
+                logger.warning("VGA gain is not set correctly. Please set it to 12dB to continue.")
                 click.echo("Please go to http://130.92.128.188/ in your favorite browser and set the VGA gain to 12dB to continue.")
                 time.sleep(3)
 
@@ -127,12 +137,14 @@ def run_scanner(config_file):
             while True:
                 lt_serial = click.prompt('Please enter the light trap serial number', type=str) 
                 if lt_serial.strip() == "":
+                    logger.warning("Light trap serial number cannot be empty. Please try again.")
                     click.echo("Light trap serial number cannot be empty. Please try again.")
                 else:
                     break
 
             # Ask the user if there is a scan comment
             scan_comment = click.prompt('Please enter a comment for the scan if needed [Press Enter to continue]', type=str, default="")
+            logger.debug(f"Prompted user for scan comment: {scan_comment}")
 
             # Define scan name and summary json
             scan_name = f"{time.strftime('%Y%m%d_%H%M')}_{lt_serial}"
@@ -147,16 +159,44 @@ def run_scanner(config_file):
 
             # Check with user that the scanner box door is closed
             while not click.confirm("Is the scanner box door closed?"):
+                logger.warning("Scanner box door is not closed. Please close it to continue.")
                 click.echo("Please close the scanner box door to continue.")
                 time.sleep(3)
 
             # Bias the SiPMs
-            click.echo(f"The scan {scan_name} will start shortly. Biasing the SiPMs...")
+            logger.info(f"The scan {scan_name} will start shortly. Biasing the SiPMs...")
             time.sleep(3)
-            click.echo("SiPMs biased.")
+            logger.info("SiPMs biased.")
 
             # Perform the scan
-            self._full_scan(printer)
+            _full_scan(printer)
+
+    return
+
+def run_point_scan(config_file, x, y, z):
+    """
+    Run a single point scan at the specified position.
+
+    Args:
+        config_file (str): Path to the configuration file.
+        x (float): X coordinate for the scan.
+        y (float): Y coordinate for the scan.
+        z (float): Z coordinate for the scan.
+    """
+    with ScannerLock(LOCK_FILE):
+        logger.info(f"Running single point scan with config: {config_file} at X:{x}, Y:{y}, Z:{z}")
+
+        config = _load_config(config_file)
+                
+        # Initialize printer controller with config
+        with PrinterCtrl(config["printer"]) as printer:
+            logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}...")
+            printer.go_to(x, y, z)
+            printer.motor_off()
+            logger.info("Start single point scan.")
+            time.sleep(3)
+            logger.info("Single point scan finished.")
+            return
 
 #-----------------------
 # Debugging functions
@@ -164,30 +204,53 @@ def run_scanner(config_file):
 
 def debug_printerCtrl(config_file):
     """
-        Debug command: Print 'hello' to the terminal.
+        Debug function for the printer controller. Make a little and cute square to test the printer movements and the connection.
     """
 
     with ScannerLock(LOCK_FILE):
-        click.echo(f"Running scanner with config: {config_file}")
+        logger.info(f"Running debug-printer-controller with config: {config_file}")
+        
         # Load configuration
-        with open(config_file, 'r') as file:
-            config = json.load(file)
-        # print(config) 
-
-        # Check config file
-        data_folder = config.get("data_folder")
-        if not os.path.exists(data_folder):
-            raise click.ClickException("Config file has an invalid 'data_folder' path.")
+        config = _load_config(config_file)
                 
         # Initialize printer controller with config
         try:
             with PrinterCtrl(config["printer"]) as printer:
-                # Move to a test position 
-                x, y, z = 200, 100, 20
-
-                click.echo(f"DEBUG: Moving to X:{x}, Y:{y}, Z:{z}")
+                # Move to test positions
+                x, y, z = 200, 200, 20
+                logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
                 printer.go_to(x, y, z)
-                printer.go_to(200,200,20)
-                click.echo("DEBUG: Move complete.")
+
+                x, y, z = 200, 100, 20
+                logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
+                printer.go_to(x, y, z)
+
+                x, y, z = 100, 100, 20
+                logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
+                printer.go_to(x, y, z)
+
+                x, y, z = 100, 200, 20
+                logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
+                printer.go_to(x, y, z)
+
+                x, y, z = 200, 200, 20
+                logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
+                printer.go_to(x, y, z)
+
+                logger.info("DEBUG: Moves complete.")
+
         except Exception as e:
-            click.echo(f"DEBUG Error: {e}")
+            logger.error(f"DEBUG Error: {e}")
+
+def debug_print_text(text):
+    """
+    Print the provided text to the terminal.
+
+    Args:
+        text (str): The text to print.
+    """
+    with ScannerLock(LOCK_FILE):
+        logger.info("Running debug-print-text")
+        click.echo(text)
+        time.sleep(5)
+        logger.info("Done!")

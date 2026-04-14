@@ -3,6 +3,8 @@ import click
 from typing import Optional
 import time
 
+from logger import logger  # Import the global loggercan you 
+
 class PrinterCtrl:
     """
     Controller for the 3D printer used in the scanning setup.
@@ -22,8 +24,8 @@ class PrinterCtrl:
         self.ports: Optional[serial.Serial] = None
         self.timeout = 2.0  # Seconds to wait for response
 
-        click.echo(f"Initializing PrinterCtrl...")
-        click.echo(f"Opening connection to: {config['usb_port']} @ {config['baudrate']}")
+        logger.info(f"Initializing PrinterCtrl...")
+        logger.debug(f"Opening connection to: {config['usb_port']} @ {config['baudrate']}")
         
         try:
             # Add timeout=2.0 to prevent hanging if printer is unresponsive
@@ -36,36 +38,43 @@ class PrinterCtrl:
             time.sleep(1)
             
             if not self.ports.is_open:
+                logger.error(f"Failed to open serial port: {config['usb_port']}")
                 raise ConnectionError("Failed to open serial port.")
             
-            click.echo(f"Port opened successfully.")
+            logger.info(f"Port opened successfully.")
 
             # Initialization Sequence
-            click.echo("Performing initialization sequence...")
+            logger.info("Performing initialization sequence...")
             self._send_command('\r\n\r\n') # Hit enter to wake up the printer
             self._send_command('G21\n') # Metric units
             self._send_command('G90\n') # Absolute positioning
             self._send_command('G28\n') # Home all axes
 
             # Go to initial position
-            click.echo(f"Moving to initial position.")
+            logger.info(f"Moving to initial position.")
             self.go_to(self.init_x, self.init_y, self.init_z)
             
-            click.echo("Initialization complete. Printer ready.")
+            logger.info("Initialization complete. Printer ready.")
 
         except serial.SerialException as e:
-            click.echo(f"Error: Could not connect to serial port. ({e})")
+            logger.error(f"Serial communication error during initialization: {e}")
             raise
         except Exception as e:
-            click.echo(f"Error during initialization: {e}")
+            logger.error(f"Error during initialization: {e}")
             raise
 
     def __enter__(self):
-        """Enter context manager."""
+        """
+            Enter context manager. (Allow the class to be used with 'with' statement for automatic cleanup)
+        """
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit context manager and ensure port is closed."""
+        """
+            Exit context manager:
+                - Move printer head close to reference position (to avoid wrong initialization in next scan)
+                - ensure port is closed.
+        """
         self.go_to(350, 350, 20)
         self._close()
         return False # Let exceptions propagate if needed
