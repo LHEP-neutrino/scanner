@@ -10,7 +10,7 @@ import time
 
 
 from scanctrl.printerctrl import PrinterCtrl
-from logger import logger, update_log_levels  # Import the global logger and log level update function
+from scanctrl.logger import logger, update_log_levels  # Import the global logger and log level update function
 
 LOCK_FILE = "/tmp/scanner.lock"
 
