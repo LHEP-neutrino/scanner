@@ -3,7 +3,7 @@ import click
 from typing import Optional
 import time
 
-from logger import logger  # Import the global loggercan you 
+from scanctrl.logger import logger  # Import the global loggercan you 
 
 class PrinterCtrl:
     """
@@ -75,6 +75,7 @@ class PrinterCtrl:
                 - Move printer head close to reference position (to avoid wrong initialization in next scan)
                 - ensure port is closed.
         """
+        logger.info("Exiting PrinterCtrl context manager. Moving to safe position and closing connection.")
         self.go_to(350, 350, 20)
         self._close()
         return False # Let exceptions propagate if needed
@@ -86,9 +87,9 @@ class PrinterCtrl:
     def _close(self):
         """Close the serial connection safely."""
         if self.ports and self.ports.is_open:
-            click.echo("Closing connection to the printer.")
             self.ports.close()
             self.ports = None
+            logger.debug("Connection to the printer closed.")
 
     def _send_command(self, command: str) -> str:
         """
@@ -100,7 +101,7 @@ class PrinterCtrl:
 
         # 1. Send the command
         self.ports.write(command.encode())
-        click.echo(f"Sent: {command.strip()}")
+        logger.info(f"Sent: {command.strip()}")
         
         try:
             # 2. Loop until we get 'ok' or timeout/error
@@ -112,22 +113,24 @@ class PrinterCtrl:
                 
                 # Check for timeout (empty bytes)
                 if not response_bytes:
-                    if wait_counter > 2:  # After 5 consecutive timeouts, give up
-                        click.echo(f"Warning: Timeout waiting for response to: {command.strip()}")
-                        click.echo(f"DEBUG: Bytes in waiting: {self.ports.in_waiting}")
+                    if wait_counter > 2:  # After 3 consecutive timeouts, give up
+                        logger.warning(f"Timeout waiting for response to: {command.strip()}")
+                        logger.debug(f"Bytes in waiting: {self.ports.in_waiting}")
                         return "TIMEOUT"
-                    click.echo(f"Warning: No response received yet for: {command.strip()} (waited {wait_counter+1} times)")
+                    logger.warning(f"No response received yet for: {command.strip()} (waited {wait_counter+1} times)")
                     time.sleep(0.5)  # Wait a bit before trying again
                     wait_counter += 1
                     continue
-                
+
+                wait_counter = 0  # Reset counter on successful read    
+
                 response = response_bytes.decode('utf-8', errors='ignore').strip()
-                click.echo(f"Response: {response}")
+                logger.debug(f"Response: {response}")
                 
                 # A. Success: Command finished
                 if response == "ok":
-                    click.echo("  [Command completed successfully]")
-                    click.echo(f"DEBUG: Bytes in waiting: {self.ports.in_waiting}")
+                    logger.info("  [Command completed successfully]")
+                    logger.debug(f"DEBUG: Bytes in waiting: {self.ports.in_waiting}")
                     return "ok"
                 
                 # B. Error: Something went wrong
@@ -138,20 +141,20 @@ class PrinterCtrl:
                 # We print it and continue the loop to wait for 'ok'
                 if "busy" in response.lower() or response.startswith("echo:"):
                     if "busy" in response.lower():
-                        click.echo(f"  [Printer is busy, waiting...: {response}]")
+                        logger.info(f"  [Printer is busy, waiting...: {response}]")
                     else:
-                        click.echo(f"  [Status update: {response}]")
+                        logger.info(f"  [Status update: {response}]")
                     continue
                 
                 # D. Unexpected: Print and keep waiting
                 # Some firmware versions send weird messages before 'ok'
-                click.echo(f"  [Unexpected response, waiting for 'ok': {response}]")
+                logger.info(f"  [Unexpected response, waiting for 'ok': {response}]")
 
         except serial.SerialException as e:
-            click.echo(f"Serial communication error: {e}")
+            logger.error(f"Serial communication error: {e}")
             raise
         except Exception as e:
-            click.echo(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error: {e}")
             raise
 
     
@@ -178,13 +181,13 @@ class PrinterCtrl:
         
         # Wait time based on the travel distance
         max_diff = max(abs(self.current_x-x), abs(self.current_y-y), abs(self.current_z-z))
-        wait_time = min(int(max_diff/5), 15)
-        print(f"DEBUG: current: {self.current_x, self.current_y, self.current_z}; aim: {x,y,z}; max diff: {max_diff}; time waiting: {wait_time}")
+        wait_time = min(int(max_diff/20), 15)
+        logger.debug(f"DEBUG: current: {self.current_x, self.current_y, self.current_z}; aim: {x,y,z}; max diff: {max_diff}; time waiting: {wait_time}")
         time.sleep(wait_time)
 
         # Update the current position
         self.current_x, self.current_y, self.current_z = x, y, z
-        print(f"Printer head moved to ({x}, {y}, {z})")
+        logger.info(f"Printer head moved to ({x}, {y}, {z})")
         return
 
     def motors_off(self):

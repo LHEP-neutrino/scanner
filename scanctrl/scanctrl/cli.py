@@ -12,7 +12,7 @@ import scanctrl.client as cl
 @click.group()
 def cli():
     """
-    Scanner CLI - A command-line interface for managing the scanner.
+        Scanner CLI - A command-line interface for managing the scanner.
     """
     pass
 
@@ -24,9 +24,9 @@ def cli():
 @click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
 def run_scanner(config_file):
     """
-    Run the scanner.
+        Run the scanner.
 
-    Usage: scanctrl run-scanner [OPTION]
+        Usage: scanctrl run-scanner [-c CONFIG_FILE]
     """
     # Check the provided argument
     config_file = os.path.normpath(config_file) 
@@ -41,9 +41,9 @@ def run_scanner(config_file):
 @click.option('--z-position', '-z', type=int, help='The z-coordinate of the scan position.', required=False, default=20)
 def run_pt_scan(config_file, x_position, y_position, z_position):
     """
-    Perform a single point scan at a specified position (X,Y).
+        Perform a single point scan at a specified position (X,Y).
 
-    Usage: scanctrl run-pt-scan -x X -y Y [-z Z --config-file CONFIG_FILE]
+        Usage: scanctrl run-pt-scan -x X -y Y [-z Z --config-file CONFIG_FILE]
     """
     # Check the provided argument
     config_file = os.path.normpath(config_file) 
@@ -60,20 +60,32 @@ def run_pt_scan(config_file, x_position, y_position, z_position):
 @click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
 def debug_printerctrl(config_file):
     """
-    Command to debug the printer controller.
+        Command to debug the printer controller.
 
-    Usage: scanctrl debug-printerctrl
+        Usage: scanctrl debug-printerctrl
     """
     cl.debug_printerCtrl(config_file)
 
 @cli.command(hidden=True)
 @click.option('--text', '-t', required=True, help='The text to print.')
 def debug_print_text(text):
-    """Print the provided text to the terminal.
+    """
+        Print the provided text to the terminal.
     
-    Usage: myproject print --text "Hello World"
+        Usage: myproject print --text "Hello World"
     """
     cl.debug_print_text(text)
+
+
+@cli.command(hidden=True)
+@click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
+def debug_scan_coords(config_file):
+    """
+        Command to debug the scan coordinates computation.
+    
+        Usage: scanctrl debug-scan-coords [-c CONFIG_FILE]
+    """
+    cl.debug_scan_coordinates(config_file)
 
 #-----------------------
 # Main entry point

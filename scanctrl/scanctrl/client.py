@@ -5,12 +5,13 @@ import click
 import fcntl
 import os
 import json
-
 import time
+from itertools import product
 
+import numpy as np
 
 from scanctrl.printerctrl import PrinterCtrl
-from scanctrl.logger import logger, update_log_levels  # Import the global logger and log level update function
+from scanctrl.logger import logger, update_log_levels 
 
 LOCK_FILE = "/tmp/scanner.lock"
 
@@ -85,43 +86,100 @@ def _load_config(config_file):
 
     return config
 
+def _compute_scan_coordinates(scan_params):
+    """
+    Compute the scan coordinates based on the scan configuration.
+
+    Args:
+        scan_params (dict): The scan parameters containing start_pos, end_pos, and N_steps.
+
+    Returns:
+        np.array: An array of scan coordinates ([[X1, Y1], [X2, Y2], ...]).
+    """
+    # From the config file define the scan positions
+    start_pos = np.array(scan_params["start_pos"], dtype=int)
+    end_pos = np.array(scan_params["end_pos"], dtype=int)
+    N_steps = np.array(scan_params["N_steps"], dtype=int)
+
+    # Get the axis coordinates
+    coord_x, x_step = np.linspace(start_pos[0], end_pos[0], N_steps[0], endpoint=False, retstep=True)
+    coord_y, y_step = np.linspace(start_pos[1], end_pos[1], N_steps[1], endpoint=False, retstep=True)
+
+    # Shift the coordinates by half a step to scan in the middle of the pixels
+    coord_x += int(x_step/2)
+    coord_y += int(y_step/2)
+
+    # Get the Cartesian product of the coordinates to get the scan positions
+    # Note that we want to iterate first over the x coordinates (fast axis), so we have to flip them after the product
+    scan_coordinates = np.array(list(product(coord_y, coord_x))).astype(int)
+    scan_coordinates = np.flip(scan_coordinates, axis=1) # Flip the coordinates to get (x,y) instead of (y,x)
+
+    logger.debug(f"Scan coordinates: {scan_coordinates}")
+    return scan_coordinates
+
+def _print_progress_bar(iteration, total, prefix='', suffix='', length=20, fill='='):
+    """
+    Calls in a loop to create a terminal progress bar.
+    
+    Args:
+        iteration (int): Current iteration count (1-based).
+        total (int): Total number of iterations.
+        prefix (str): Prefix string.
+        suffix (str): Suffix string.
+        length (int): Length of the progress bar in characters.
+        fill (str): Character used to fill the bar.
+    """
+    percent = ("{0:.1f}".format(100 * (iteration / float(total))))
+    filled_length = int(length * iteration // total)
+    bar = fill * filled_length + '-' * (length - filled_length)
+    
+    # \r moves the cursor back to the start of the line
+    # end='' prevents a newline from being printed
+    print(f'\r{prefix} [{bar}] ({iteration}/{total}){suffix}', end='')
+    
+    if iteration == total:
+        print() # Print a newline at the end
+
+
 def _full_scan(printerctrl, scan_config):
     """
-    Perform a full scan.
+        Perform a full scan.
     """
     # From the config file define the scan positions
     scan_params = scan_config["scan_params"]
-    start_pos = scan_params["start_pos"]
-    end_pos = scan_params["end_pos"]
-    N_steps = scan_params["N_steps"]
+    scan_coordinates = _compute_scan_coordinates(scan_params)
 
-    steps_size = int(abs(start_pos - end_pos)/N_steps)
-    
-    # First point is half a step away form the boarder
-    scan_coordinates = [[start_pos + steps_size/2]]
-    for j in range(N_steps[1]): # Y
-        for i in range(N_steps[0]): # X
-            scan_coordinates.append([start_pos + steps_size/2 + i*steps_size, start_pos + steps_size/2 + j*steps_size])
+    scan_summary_json = {}
+    total_scan_points = len(scan_coordinates)
+    for idx, (x, y) in enumerate(scan_coordinates):
+        _print_progress_bar(iteration=idx, 
+                            total=total_scan_points, 
+                            prefix="Scanning in progress:", 
+                            suffix=f", Currently: X={x:.2f}, Y={y:.2f}", 
+                            length=30
+                            )
 
-    logger.debug(f"Scan coordinates: {scan_coordinates}")
+        # Move the printer to the scan position
+        # printerctrl.go_to(x, y, scan_params["z_scan_height"])
+        # printerctrl.motor_off()
 
+        #Take data
+        time.sleep(0.5) # simulate data taking
 
-    output = "Performing the scan"
-    output = output.ljust(60-len(output), '.')
-    click.echo(output, nl=False)
-    time.sleep(3)
-    output = ".....Performing the scan"
-    output = output.ljust(60-len(output), '.')
-    click.echo(f"\r{output}", nl=False)
-    time.sleep(3)
-    output = "..........Performing the scan"
-    output = output.ljust(60-len(output), '.')
-    click.echo(f"\r{output}", nl=False)
-    time.sleep(3)
-    output = "Scann finished."
-    # print(len(output))
-    output = output.ljust(60-len(output), '.')
-    click.echo(f"\r{output}")
+        # Register scan info
+        scan_summary_json[f"pos_{idx}"] = { "x": int(x),
+                                            "y": int(y),
+                                            "data_file" : f"scan_point_{idx}"
+                                            }
+
+    _print_progress_bar(iteration=total_scan_points, 
+                        total=total_scan_points, 
+                        prefix="Scan finished!       :",
+                        suffix=len(", Currently: X={x:.2f}, Y={y:.2f}")*" ",
+                        length=30
+                        )
+
+    return scan_summary_json
 
 #-----------------------
 # CLI Commands
@@ -166,11 +224,10 @@ def run_scanner(config_file):
             # Define scan name and summary json
             scan_name = f"{time.strftime('%Y%m%d_%H%M')}_{lt_serial}"
 
-            scan_summary_json = {
+            scanner_summary_json = {
                 "scan_name": scan_name,
                 "lt_serial": lt_serial,
                 "scan_comment": scan_comment,
-
                 "config_file": config_file
             }
 
@@ -186,7 +243,10 @@ def run_scanner(config_file):
             logger.info("SiPMs biased.")
 
             # Perform the scan
-            _full_scan(printer, config["scan"])
+            scan_summary_json = _full_scan(printer, config["scan"])
+
+            # Add scan summary info to the json
+            scanner_summary_json["scan_summary"] = scan_summary_json
 
     return
 
@@ -271,3 +331,24 @@ def debug_print_text(text):
         click.echo(text)
         time.sleep(5)
         logger.info("Done!")
+
+def debug_scan_coordinates(config_file):
+    """
+    Debug function to compute and print the scan coordinates based on the configuration file.
+
+    Args:
+        config_file (str): Path to the configuration file.
+    """
+    
+    logger.info(f"Running debug-scan-coordinates with config: {config_file}")
+    
+    # Load configuration
+    config = _load_config(config_file)
+
+    scan_summary_json = _full_scan(None, config['scan'])
+
+    # Compute scan coordinates
+    # scan_params = config["scan"]["scan_params"]
+    # scan_coordinates = _compute_scan_coordinates(scan_params)
+    # logger.info(f"Computed {len(scan_coordinates)} scan coordinates")
+
