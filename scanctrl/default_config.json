@@ -14,13 +14,10 @@
     },
     "scan": {
         "data_folder": "/home/lhep/nico_test/data",
-        "scan_config": {
-            "x_start": 360,
-            "x_end": 40,
-            "x_step": 20,
-            "y_start": 360,
-            "y_end": 60,
-            "y_step": 20,
+        "scan_params": {
+            "start_pos": [360, 360],
+            "end_pos": [40, 60],
+            "N_steps": [20, 20],
             "z_scan_height": 20
         }
     },

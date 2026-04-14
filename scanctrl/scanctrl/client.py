@@ -85,10 +85,27 @@ def _load_config(config_file):
 
     return config
 
-def _full_scan(printerctrl):
+def _full_scan(printerctrl, scan_config):
     """
     Perform a full scan.
     """
+    # From the config file define the scan positions
+    scan_params = scan_config["scan_params"]
+    start_pos = scan_params["start_pos"]
+    end_pos = scan_params["end_pos"]
+    N_steps = scan_params["N_steps"]
+
+    steps_size = int(abs(start_pos - end_pos)/N_steps)
+    
+    # First point is half a step away form the boarder
+    scan_coordinates = [[start_pos + steps_size/2]]
+    for j in range(N_steps[1]): # Y
+        for i in range(N_steps[0]): # X
+            scan_coordinates.append([start_pos + steps_size/2 + i*steps_size, start_pos + steps_size/2 + j*steps_size])
+
+    logger.debug(f"Scan coordinates: {scan_coordinates}")
+
+
     output = "Performing the scan"
     output = output.ljust(60-len(output), '.')
     click.echo(output, nl=False)
@@ -169,7 +186,7 @@ def run_scanner(config_file):
             logger.info("SiPMs biased.")
 
             # Perform the scan
-            _full_scan(printer)
+            _full_scan(printer, config["scan"])
 
     return
 
