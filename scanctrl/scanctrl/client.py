@@ -160,8 +160,8 @@ def _full_scan(printerctrl, scan_config):
                             )
 
         # Move the printer to the scan position
-        # printerctrl.go_to(x, y, scan_params["z_scan_height"])
-        # printerctrl.motor_off()
+        printerctrl.go_to(x, y, scan_params["z_scan_height"])
+        printerctrl.motors_off()
 
         #Take data
         time.sleep(0.5) # simulate data taking
@@ -202,7 +202,8 @@ def run_scanner(config_file):
         with PrinterCtrl(config["printer"]) as printer:
         
             # Check with user that the VGA is set correctly
-            while not click.confirm("Is the VGA gain set correctly (12dB)?"):
+            
+            while not click.confirm("\nIs the VGA gain set correctly (12dB)?"):
                 logger.warning("VGA gain is not set correctly. Please set it to 12dB to continue.")
                 click.echo("Please go to http://130.92.128.188/ in your favorite browser and set the VGA gain to 12dB to continue.")
                 time.sleep(3)
@@ -210,15 +211,14 @@ def run_scanner(config_file):
 
             # Ask the user for the LT serial number
             while True:
-                lt_serial = click.prompt('Please enter the light trap serial number', type=str) 
+                lt_serial = click.prompt('\nPlease enter the light trap serial number', type=str) 
                 if lt_serial.strip() == "":
-                    logger.warning("Light trap serial number cannot be empty. Please try again.")
                     click.echo("Light trap serial number cannot be empty. Please try again.")
                 else:
                     break
 
             # Ask the user if there is a scan comment
-            scan_comment = click.prompt('Please enter a comment for the scan if needed [Press Enter to continue]', type=str, default="")
+            scan_comment = click.prompt('\nPlease enter a comment for the scan if needed [Press Enter to continue]', type=str, default="")
             logger.debug(f"Prompted user for scan comment: {scan_comment}")
 
             # Define scan name and summary json
@@ -232,8 +232,7 @@ def run_scanner(config_file):
             }
 
             # Check with user that the scanner box door is closed
-            while not click.confirm("Is the scanner box door closed?"):
-                logger.warning("Scanner box door is not closed. Please close it to continue.")
+            while not click.confirm("\nIs the scanner box door closed?"):
                 click.echo("Please close the scanner box door to continue.")
                 time.sleep(3)
 

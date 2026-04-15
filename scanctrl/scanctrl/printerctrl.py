@@ -101,7 +101,7 @@ class PrinterCtrl:
 
         # 1. Send the command
         self.ports.write(command.encode())
-        logger.info(f"Sent: {command.strip()}")
+        logger.debug(f"Sent: {command.strip()}")
         
         try:
             # 2. Loop until we get 'ok' or timeout/error
@@ -114,10 +114,10 @@ class PrinterCtrl:
                 # Check for timeout (empty bytes)
                 if not response_bytes:
                     if wait_counter > 2:  # After 3 consecutive timeouts, give up
-                        logger.warning(f"Timeout waiting for response to: {command.strip()}")
+                        logger.debug(f"Timeout waiting for response to: {command.strip()}")
                         logger.debug(f"Bytes in waiting: {self.ports.in_waiting}")
                         return "TIMEOUT"
-                    logger.warning(f"No response received yet for: {command.strip()} (waited {wait_counter+1} times)")
+                    logger.debug(f"No response received yet for: {command.strip()} (waited {wait_counter+1} times)")
                     time.sleep(0.5)  # Wait a bit before trying again
                     wait_counter += 1
                     continue
@@ -125,12 +125,11 @@ class PrinterCtrl:
                 wait_counter = 0  # Reset counter on successful read    
 
                 response = response_bytes.decode('utf-8', errors='ignore').strip()
-                logger.debug(f"Response: {response}")
                 
                 # A. Success: Command finished
                 if response == "ok":
-                    logger.info("  [Command completed successfully]")
-                    logger.debug(f"DEBUG: Bytes in waiting: {self.ports.in_waiting}")
+                    logger.debug("[Command completed successfully]")
+                    logger.debug(f"Bytes in waiting: {self.ports.in_waiting}")
                     return "ok"
                 
                 # B. Error: Something went wrong
@@ -141,14 +140,14 @@ class PrinterCtrl:
                 # We print it and continue the loop to wait for 'ok'
                 if "busy" in response.lower() or response.startswith("echo:"):
                     if "busy" in response.lower():
-                        logger.info(f"  [Printer is busy, waiting...: {response}]")
+                        logger.debug(f"[Printer is busy, waiting...: {response}]")
                     else:
-                        logger.info(f"  [Status update: {response}]")
+                        logger.debug(f"[Status update: {response}]")
                     continue
                 
                 # D. Unexpected: Print and keep waiting
                 # Some firmware versions send weird messages before 'ok'
-                logger.info(f"  [Unexpected response, waiting for 'ok': {response}]")
+                logger.debug(f"[Unexpected response, waiting for 'ok': {response}]")
 
         except serial.SerialException as e:
             logger.error(f"Serial communication error: {e}")
@@ -182,12 +181,12 @@ class PrinterCtrl:
         # Wait time based on the travel distance
         max_diff = max(abs(self.current_x-x), abs(self.current_y-y), abs(self.current_z-z))
         wait_time = min(int(max_diff/20), 15)
-        logger.debug(f"DEBUG: current: {self.current_x, self.current_y, self.current_z}; aim: {x,y,z}; max diff: {max_diff}; time waiting: {wait_time}")
+        logger.debug(f"Current position: {self.current_x, self.current_y, self.current_z}; aim: {x,y,z}; max diff: {max_diff}; time waiting: {wait_time}")
         time.sleep(wait_time)
 
         # Update the current position
         self.current_x, self.current_y, self.current_z = x, y, z
-        logger.info(f"Printer head moved to ({x}, {y}, {z})")
+        logger.debug(f"Printer head moved to ({x}, {y}, {z})")
         return
 
     def motors_off(self):
@@ -196,4 +195,5 @@ class PrinterCtrl:
         """
         # M18 is standard for disabling all axes (Note: M84 is also widely supported).
         self._send_command('M18\n')
+        logger.debug(f"Printer motors disabled.")
         return
