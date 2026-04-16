@@ -1,0 +1,189 @@
+import os
+import paramiko
+from scanctrl.logger import logger  # Import the global logger
+import os
+from typing import List, Optional
+
+
+class SSHController:
+    """
+    A class to manage commands on a remote hardware via SSH.
+    Handles connection lifecycle, authentication, and command execution.
+    """
+
+    def __init__(self, username: str, hostname: str, password_env_var: str = "SSH_PASSWORD"):
+        """
+        Initializes the controller and establishes the SSH connection.
+        
+        Args:
+            hostname (str): The IP address or domain of the remote server.
+            username (str): The SSH username.
+            password_env_var (str): The name of the environment variable containing the password.
+        """
+        self.hostname = hostname
+        self.username = username
+        self.password_env_var = password_env_var
+        self._ssh_client = None
+        self._connected = False
+        
+        self._connect()
+
+    def __del__(self):
+        """
+            Destructor to ensure connection is closed when object is garbage collected.
+        """
+        if self._connected:
+            self.close()
+
+    def __enter__(self):
+        """
+            Context manager entry.
+        """
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+            Context manager exit (ensures close).
+        """
+        self.close()
+        return False
+    
+
+    #-----------------------
+    # Helper functions
+    #-----------------------
+
+    def _connect(self):
+        """
+            Establishes the SSH connection.
+        """
+        if self._connected:
+            logger.warning("Connection already established.")
+            return
+
+        try:
+            # Retrieve password securely from environment
+            password = os.getenv(self.password_env_var)
+            if not password:
+                raise EnvironmentError(
+                    f"Environment variable '{self.password_env_var}' is not set. "
+                    "Please export SSH_PASSWORD before running the script."
+                )
+
+            self._ssh_client = paramiko.SSHClient()
+            self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy())
+            
+            self._ssh_client.connect(
+                hostname=self.hostname,
+                username=self.username,
+                password=password,
+                allow_agent=True,
+                look_for_keys=True,
+                timeout=10
+            )
+            
+            self._connected = True
+            logger.info(f"Successfully connected to {self.hostname} as {self.username}")
+
+        except paramiko.AuthenticationException:
+            logger.error("Authentication failed. Check username/password.")
+            raise
+        except paramiko.SSHException as e:
+            logger.error(f"SSH connection error: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during connection: {e}")
+            raise
+
+    def _ensure_connected(self):
+        """
+            Helper to ensure connection exists before running commands.
+        """
+        if not self._connected or not self._ssh_client:
+            self._connect()
+
+    #-----------------------
+    # Command execution functions
+    #-----------------------
+
+    def run_command(self, command: str) -> str:
+        """
+            Generic method to run any shell command on the remote server.
+            
+            Args:
+                command (str): The shell command to execute.
+                
+            Returns:
+                str: The stdout output.
+        """
+        self._ensure_connected()
+        
+        logger.info(f"Executing generic command: {command}")
+        
+        try:
+            stdin, stdout, stderr = self._ssh_client.exec_command(command, get_pty=True)
+            output = stdout.read().decode('utf-8')
+            error_output = stderr.read().decode('utf-8')
+            exit_status = stdout.channel.recv_exit_status()
+            
+            if exit_status != 0:
+                logger.error(f"Command failed: {exit_status} - {error_output}")
+                raise RuntimeError(f"Command failed: {error_output}")
+                
+            return output
+            
+        except Exception as e:
+            logger.error(f"Error executing generic command: {e}")
+            raise
+
+    def close(self):
+        """
+            Closes the SSH connection.
+        """
+        if self._connected and self._ssh_client:
+            try:
+                self._ssh_client.close()
+                self._connected = False
+                logger.info("SSH connection closed.")
+            except Exception as e:
+                logger.error(f"Error closing connection: {e}")
+
+    
+# def set_all_channels(self, voltage: float, board: str) -> str:
+#         """
+#         Sends the command to set all bias channels to a specific voltage.
+        
+#         Args:
+#             voltage (float): The target voltage.
+#             board (str): The board identifier.
+            
+#         Returns:
+#             str: The stdout output from the remote command.
+            
+#         Raises:
+#             RuntimeError: If the remote command fails.
+#         """
+#         self._ensure_connected()
+        
+#         command = f'supplr set-channels --voltage {voltage} --board {board}'
+#         logger.info(f"Executing: {command}")
+        
+#         try:
+#             stdin, stdout, stderr = self._ssh_client.exec_command(command, get_pty=True)
+            
+#             # Read output
+#             output = stdout.read().decode('utf-8')
+#             error_output = stderr.read().decode('utf-8')
+#             exit_status = stdout.channel.recv_exit_status()
+            
+#             if exit_status != 0:
+#                 logger.error(f"Command failed with exit code {exit_status}")
+#                 logger.error(f"Stderr: {error_output}")
+#                 raise RuntimeError(f"Remote command failed: {error_output}")
+            
+#             logger.info(f"Command succeeded. Output: {output.strip()}")
+#             return output
+
+#         except Exception as e:
+#             logger.error(f"Error executing command: {e}")
+#             raise

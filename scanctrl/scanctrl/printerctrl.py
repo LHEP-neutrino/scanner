@@ -3,7 +3,7 @@ import click
 from typing import Optional
 import time
 
-from scanctrl.logger import logger  # Import the global loggercan you 
+from scanctrl.logger import logger  # Import the global logger
 
 class PrinterCtrl:
     """
@@ -75,7 +75,7 @@ class PrinterCtrl:
                 - Move printer head close to reference position (to avoid wrong initialization in next scan)
                 - ensure port is closed.
         """
-        logger.info("Exiting PrinterCtrl context manager. Moving to safe position and closing connection.")
+        logger.info("Exiting PrinterCtrl: Moving to safe position and closing connection.")
         self.go_to(350, 350, 20)
         self._close()
         return False # Let exceptions propagate if needed

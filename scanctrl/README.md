@@ -25,6 +25,13 @@ pip install -e .
 ```
 Note: The activate script has been modified to automatically load shell completions upon activation.
 
+5. **Set the password to remote machine**
+To connect to the pulser board you need to set the user and password as environment variables
+```bash
+export PULSERPI_USERNAME="your_username"
+export PULSERPI_PASSWORD="your_password"
+```
+
 ## Usage
 
 Once installed and the virtual environment is active, the myproject command becomes available in your terminal.

@@ -12,8 +12,10 @@ import numpy as np
 
 from scanctrl.printerctrl import PrinterCtrl
 from scanctrl.logger import logger, update_log_levels 
+from scanctrl.daqctrl import run_daq
 
 LOCK_FILE = "/tmp/scanner.lock"
+
 
 class ScannerLock:
     """
@@ -164,7 +166,8 @@ def _full_scan(printerctrl, scan_config):
         printerctrl.motors_off()
 
         #Take data
-        time.sleep(0.5) # simulate data taking
+        run_daq(data_taking_time=5)
+        # time.sleep(0.5) # simulate data taking
 
         # Register scan info
         scan_summary_json[f"pos_{idx}"] = { "x": int(x),

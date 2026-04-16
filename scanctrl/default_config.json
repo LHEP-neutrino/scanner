@@ -4,10 +4,6 @@
         "baudrate": 115200,
         "init_pos_LT": [360, 360, 20]
     },
-    "supplr" : {
-        "host": "localhost",
-        "port": 54321
-    },
     "arduino": {
         "port": "/dev/ttyUSB1",
         "baudrate": 9600
@@ -20,6 +16,19 @@
             "N_steps": [20, 20],
             "z_scan_height": 20
         }
+    },
+    "pulser": {
+        "host" : "130.92.128.165",
+        "username" : "pi",
+        "config_file": "pulser_config.json",
+        "period": 10,
+        "duration": 30
+    },
+    "supplr": {
+        "host": "130.92.128.188",
+        "username": "pi",
+        "board": 15,
+        "config_file": "supplr_config.json"
     },
     "logging": {
         "log_level": "INFO",
