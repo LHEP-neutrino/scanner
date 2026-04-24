@@ -1,6 +1,6 @@
 import os
 import paramiko
-from scanner.scanctrl.src.scanctrl.logger import logger  # Import the global logger
+from scanctrl.logger import logger  # Import the global logger
 import os
 from typing import List, Optional
 
