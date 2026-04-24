@@ -13,6 +13,7 @@ import numpy as np
 from scanctrl.printerctrl import PrinterCtrl
 from scanctrl.logger import logger, update_log_levels 
 from scanctrl.daqctrl import run_daq
+from scanctrl.ppulsectrl import PPULSECtrl
 
 LOCK_FILE = "/tmp/scanner.lock"
 
@@ -347,10 +348,30 @@ def debug_scan_coordinates(config_file):
     # Load configuration
     config = _load_config(config_file)
 
-    scan_summary_json = _full_scan(None, config['scan'])
+    # scan_summary_json = _full_scan(None, config['scan'])
 
     # Compute scan coordinates
-    # scan_params = config["scan"]["scan_params"]
-    # scan_coordinates = _compute_scan_coordinates(scan_params)
-    # logger.info(f"Computed {len(scan_coordinates)} scan coordinates")
+    scan_params = config["scan"]["scan_params"]
+    scan_coordinates = _compute_scan_coordinates(scan_params)
+    logger.info(f"Computed {len(scan_coordinates)} scan coordinates")
+
+def debug_pulserctrl(config_file):
+    """
+    Debug function for the pulser controller. It checks the connection to the pulser server and tries to set the configuration.
+    """
+    config = _load_config(config_file)
+    try:
+        with PPULSECtrl(config["pulser"]) as pulserctrl:
+            logger.info("Pulser controller initialized successfully.")
+            pulserctrl.run_pulser()
+    except Exception as e:
+        logger.error(f"Failed to initialize pulser controller: {e}")
+
+def debug_daqctrl():
+    """
+    Debug function for the DAQ controller. It runs a simple data taking session to check if the DAQ is working correctly.
+    """
+    logger.info("Running debug-daqctrl")
+    run_daq(data_taking_time=10)
+    logger.info("Done!")
 
