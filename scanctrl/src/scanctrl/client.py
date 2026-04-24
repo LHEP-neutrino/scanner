@@ -355,13 +355,19 @@ def debug_scan_coordinates(config_file):
     scan_coordinates = _compute_scan_coordinates(scan_params)
     logger.info(f"Computed {len(scan_coordinates)} scan coordinates")
 
-def debug_pulserctrl(config_file):
+def debug_pulserctrl():
     """
     Debug function for the pulser controller. It checks the connection to the pulser server and tries to set the configuration.
     """
-    config = _load_config(config_file)
+    config_pulser = {
+        "host" : "130.92.128.165",
+        "username" : "pi",
+        "config_file": "pulser_config.json",
+        "period": 10,
+        "duration": 30
+    }   
     try:
-        with ppulsectrl.PPULSECtrl(config["pulser"]) as pulserctrl:
+        with ppulsectrl.PPULSECtrl(config_pulser) as pulserctrl:
             logger.info("Pulser controller initialized successfully.")
             pulserctrl.run_pulser()
     except Exception as e:

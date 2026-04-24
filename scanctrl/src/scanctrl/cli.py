@@ -88,6 +88,13 @@ def debug_scan_coords(config_file):
     cl.debug_scan_coordinates(config_file)
 
 @cli.command(hidden=True)
+def debug_pulserctrl():
+    """
+        Command to debug the pulser controller.
+    """
+    cl.debug_pulserctrl()
+
+@cli.command(hidden=True)
 def debug_daqctrl():
     """
         Command to debug the DAQ controller.

@@ -56,7 +56,7 @@ class PPULSECtrl(sshctrl.SSHCtrl):
         e.g {
                 "host" : "130.92.128.165",
                 "username" : "pi",
-                "config_file": "pulser_config.json", or "s_params": [s1, s2,...], "p_params": [p1, p2, ...], "channels": [ch`1, ch2,...]],
+                "config_file": "pulser_config.json", or "s_params": [s1, s2,...], "p_params": [p1, p2, ...], "channels": [ch1, ch2,...]],
                 "period": 10, # [ms]
                 "duration": 30 # [s]
             }
