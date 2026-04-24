@@ -362,7 +362,10 @@ def debug_pulserctrl():
     config_pulser = {
         "host" : "130.92.128.165",
         "username" : "pi",
-        "config_file": "pulser_config.json",
+        "password_env_var" : "SSH_PASSWORD",
+        "s_params": [0],
+        "p_params": [0],
+        "channels": [1],
         "period": 10,
         "duration": 30
     }   
