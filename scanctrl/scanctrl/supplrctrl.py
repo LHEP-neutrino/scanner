@@ -1,9 +1,9 @@
 import os
 
-from scanctrl.sshctrl import SSHCtrl
+import scanctrl.sshctrl as sshctrl  
 from scanctrl.logger import logger # Import the global logger
 
-class SUPPLRCtrl(SSHCtrl):
+class SUPPLRCtrl(sshctrl.SSHCtrl):
     """
     Controller for the SiPM bias voltage (SUPPLR) used in the scanning setup.
     Inherits from SSHCtrl to manage remote command execution.

@@ -1,10 +1,10 @@
 
 import os
 
-from scanctrl.sshctrl import SSHCtrl
+import scanctrl.sshctrl as sshctrl
 from scanctrl.logger import logger # Import the global logger
 
-class PPULSECtrl(SSHCtrl):
+class PPULSECtrl(sshctrl.SSHCtrl):
     """
     Controller for the pulse generator used in the scanning setup.
     Inherits from SSHCtrl to manage remote command execution.

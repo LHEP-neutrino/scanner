@@ -13,7 +13,7 @@ import numpy as np
 from scanctrl.printerctrl import PrinterCtrl
 from scanctrl.logger import logger, update_log_levels 
 from scanctrl.daqctrl import run_daq
-from scanctrl.ppulsectrl import PPULSECtrl
+import scanctrl.ppulsectrl as ppulsectrl
 
 LOCK_FILE = "/tmp/scanner.lock"
 
@@ -361,7 +361,7 @@ def debug_pulserctrl(config_file):
     """
     config = _load_config(config_file)
     try:
-        with PPULSECtrl(config["pulser"]) as pulserctrl:
+        with ppulsectrl.PPULSECtrl(config["pulser"]) as pulserctrl:
             logger.info("Pulser controller initialized successfully.")
             pulserctrl.run_pulser()
     except Exception as e:
