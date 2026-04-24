@@ -1,11 +1,11 @@
 import os
 import paramiko
-from scanctrl.logger import logger  # Import the global logger
+from scanner.scanctrl.src.scanctrl.logger import logger  # Import the global logger
 import os
 from typing import List, Optional
 
 
-class SSHController:
+class SSHCtrl:
     """
     A class to manage commands on a remote hardware via SSH.
     Handles connection lifecycle, authentication, and command execution.

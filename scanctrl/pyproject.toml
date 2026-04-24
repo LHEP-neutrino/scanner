@@ -7,12 +7,21 @@ name = "scanctrl"
 version = "0.1.0"
 description = "Python module containing the scanner control commands"
 requires-python = ">=3.8"
+readme = "README.md"
+authors = [
+  { name = "Nicolas Sallin", email = "nicolas.sallin@unibe.ch" }
+]
 dependencies = [
     "click>=8.0.0",
     "pyserial>=3.5",
     "logger>=1.4",
-    "numpy>=2.4.4"
+    "numpy>=2.4.4",
+    "paramiko>=4.0.0"
 ]
 
 [project.scripts]
 scanctrl = "scanctrl.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]                 # Tells setuptools to look inside 'src'
+include = ["scanctrl*"] 
