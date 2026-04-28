@@ -78,7 +78,6 @@ class PrinterCtrl:
         logger.info("Exiting PrinterCtrl: Moving to safe position and closing connection.")
         self.go_to(350, 350, 20)
         self._close()
-        return False # Let exceptions propagate if needed
 
     #-----------------------
     # Internal Helper functions
@@ -187,7 +186,7 @@ class PrinterCtrl:
         # Update the current position
         self.current_x, self.current_y, self.current_z = x, y, z
         logger.debug(f"Printer head moved to ({x}, {y}, {z})")
-        return
+
 
     def motors_off(self):
         """
@@ -196,4 +195,4 @@ class PrinterCtrl:
         # M18 is standard for disabling all axes (Note: M84 is also widely supported).
         self._send_command('M18\n')
         logger.debug(f"Printer motors disabled.")
-        return
+

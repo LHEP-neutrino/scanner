@@ -37,13 +37,31 @@ def _send_command(component: str, command: str, port: int):
         logger.error(f"Failed to send command to {component}: {e.stderr}")
         raise
 
-def run_daq(data_taking_time: int):
+def start_daq():
     logger.debug("Starting DAQ")
     
     # Start ADC64
     _send_command("adc64", CONFIG["adc64"]["start_cmd"], CONFIG["adc64"]["port"])
     # Start EVB
     _send_command("evb", CONFIG["evb"]["start_cmd"], CONFIG["evb"]["port"])
+
+    time.sleep(1)
+
+def stop_daq():
+    logger.debug("Stopping DAQ")
+    
+    # Stop EVB
+    _send_command("evb", CONFIG["evb"]["stop_cmd"], CONFIG["evb"]["port"])
+    # Stop ADC64
+    _send_command("adc64", CONFIG["adc64"]["stop_cmd"], CONFIG["adc64"]["port"])
+    
+    time.sleep(1)
+
+def run_daq(data_taking_time: int = 10):
+    logger.debug("Starting DAQ")
+    
+    # Start daq
+    start_daq()
     
     time.sleep(1)
     
@@ -53,10 +71,5 @@ def run_daq(data_taking_time: int):
     logger.debug("DAQ data taking complete.")
     logger.debug("Stopping DAQ")
     
-    # Stop EVB
-    _send_command("evb", CONFIG["evb"]["stop_cmd"], CONFIG["evb"]["port"])
-    # Stop ADC64
-    _send_command("adc64", CONFIG["adc64"]["stop_cmd"], CONFIG["adc64"]["port"])
-
-# Usage
-# run_daq(data_taking_time=10)
+    # Stop daq
+    stop_daq()

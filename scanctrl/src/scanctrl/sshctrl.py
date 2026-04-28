@@ -46,7 +46,6 @@ class SSHCtrl:
             Context manager exit (ensures close).
         """
         self.close()
-        return False
     
 
     #-----------------------
@@ -135,6 +134,49 @@ class SSHCtrl:
         except Exception as e:
             logger.error(f"Error executing generic command: {e}")
             raise
+
+    def transfer_file(self, local_path: str, remote_dir: str, remote_filename: str = None):
+        """
+        Transfers a file from the local machine to the remote server using SFTP over the existing SSH connection.
+        
+        Args:
+            local_path (str): The path to the file on the local machine (e.g., "data.csv").
+            remote_dir (str): The directory on the remote server where the file should be saved.
+            remote_filename (str, optional): The name of the file on the remote server. By default, it will use
+                                            the same name as the local file.
+        """
+        self._ensure_connected()
+
+        if remote_filename is None:
+            remote_filename = os.path.basename(local_path)
+        
+        # Construct the full remote path
+        remote_full_path = os.path.join(remote_dir, remote_filename)
+        
+        logger.debug(f"Starting file transfer: {local_path} -> {remote_full_path}")
+        
+        try:
+            # Open an SFTP session over the existing SSH connection
+            sftp = self._ssh_client.open_sftp()
+            
+            # Perform the upload
+            sftp.put(local_path, remote_full_path)
+            
+            logger.debug(f"File transfer successful: {remote_full_path}")
+            
+        except FileNotFoundError:
+            logger.error(f"Local file not found: {local_path}")
+            raise
+        except paramiko.SFTPError as e:
+            logger.error(f"SFTP transfer error: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during file transfer: {e}")
+            raise
+        finally:
+            # Close the SFTP session, but keep the main SSH connection open
+            sftp.close()
+
 
     def close(self):
         """

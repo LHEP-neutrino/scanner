@@ -4,7 +4,6 @@ import os
 import scanctrl.client as cl
 
 
-
 #-----------------------
 # Group declaration
 #-----------------------
@@ -21,7 +20,7 @@ def cli():
 #-----------------------
     
 @cli.command()
-@click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
+@click.option('--config-file', '-c', help='Path to a configuration file.')
 def run_scanner(config_file):
     """
         Run the scanner.
@@ -34,8 +33,9 @@ def run_scanner(config_file):
     # Run the scanner with the provided config file
     cl.run_scanner(config_file)
 
+
 @cli.command()
-@click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
+@click.option('--config-file', '-c', help='Path to a configuration file.')
 @click.option('--x-position', '-x', type=int, help='The x-coordinate of the scan position.', required=True)
 @click.option('--y-position', '-y', type=int, help='The y-coordinate of the scan position.', required=True)
 @click.option('--z-position', '-z', type=int, help='The z-coordinate of the scan position.', required=False, default=20)
@@ -57,7 +57,7 @@ def run_pt_scan(config_file, x_position, y_position, z_position):
 #-----------------------
 
 @cli.command(hidden=True)
-@click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
+@click.option('--config-file', '-c', help='Path to a configuration file.')
 def debug_printerctrl(config_file):
     """
         Command to debug the printer controller.
@@ -65,6 +65,7 @@ def debug_printerctrl(config_file):
         Usage: scanctrl debug-printerctrl
     """
     cl.debug_printerCtrl(config_file)
+
 
 @cli.command(hidden=True)
 @click.option('--text', '-t', required=True, help='The text to print.')
@@ -78,7 +79,7 @@ def debug_print_text(text):
 
 
 @cli.command(hidden=True)
-@click.option('--config-file', '-c', help='Path to a configuration file. Default is "default_config.json".', default=os.path.normpath(os.path.join(os.path.dirname(__file__), '../default_config.json')))
+@click.option('--config-file', '-c', help='Path to a configuration file.')
 def debug_scan_coords(config_file):
     """
         Command to debug the scan coordinates computation.
@@ -87,12 +88,14 @@ def debug_scan_coords(config_file):
     """
     cl.debug_scan_coordinates(config_file)
 
+
 @cli.command(hidden=True)
 def debug_pulserctrl():
     """
         Command to debug the pulser controller.
     """
     cl.debug_pulserctrl()
+
 
 @cli.command(hidden=True)
 def debug_daqctrl():
@@ -102,6 +105,18 @@ def debug_daqctrl():
         Usage: scanctrl debug-daqctrl
     """
     cl.debug_daqctrl()  
+
+
+@cli.command(hidden=True)
+@click.option('--config-file', '-c', help='Path to a configuration file.')
+def debug_supplrctrl(config_file):
+    """
+        Command to debug the SiPM bias voltage control.
+    
+        Usage: scanctrl debug-supplrctrl
+    """
+    cl.debug_supplrctrl(config_file)
+
 
 #-----------------------
 # Main entry point

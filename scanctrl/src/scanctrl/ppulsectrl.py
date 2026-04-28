@@ -4,6 +4,7 @@ import os
 import scanctrl.sshctrl as sshctrl
 from scanctrl.logger import logger # Import the global logger
 
+
 class PPULSECtrl(sshctrl.SSHCtrl):
     """
     Controller for the pulse generator used in the scanning setup.
@@ -20,6 +21,7 @@ class PPULSECtrl(sshctrl.SSHCtrl):
         if password_env_var is None:
             password_env_var = self.config.get("password_env_var")
 
+
         super().__init__(
             username=username,
             hostname=hostname,
@@ -31,6 +33,10 @@ class PPULSECtrl(sshctrl.SSHCtrl):
             self._set_config()
         except Exception as e:
             logger.error(f"Failed to set pulser configuration: {e}")
+
+    #-----------------------
+    # Helper functions
+    #-----------------------
 
     def _check_server_status(self):
         """
@@ -47,7 +53,34 @@ class PPULSECtrl(sshctrl.SSHCtrl):
             logger.error(f"Failed to connect to pulser server: {e}")
             raise ConnectionError(f"Failed to connect to pulser server")
 
-    def _set_config(self):
+    def _set_period(self):
+        """
+        Sets the pulser period on the remote server.
+        """
+        command = f'ppulse set-trigger -p {int(self.config.get("period"))}'
+        self.run_command(command)
+
+
+    def _set_config_file(self):
+        """
+        Sets the pulser configuration on the remote server using a config file.
+        """
+        config_file = os.path.abspath(self.config.get("config_file"))
+        
+        # Check if the external file exists
+        if os.path.exists(config_file):
+            logger.debug(f"Setting pulser configuration file: {config_file}.")
+            self.transfer_file(config_file, remote_dir=self.config.get("config_folder_remote"), remote_filename=os.path.basename(config_file))
+            config_file_remote = os.path.join(self.config.get("config_folder_remote"), os.path.basename(config_file))
+
+            command = f'ppulse set-channels-file -f {config_file_remote}' 
+            self.run_command(command)
+
+        else:
+            logger.error(f"Specified pulser config file not found: {config_file}.")
+            raise FileNotFoundError(f"Specified pulser config file not found.")
+
+    def _set_config(self, pulser_config: dict = None):
         """
         Sets the pulser configuration on the remote server.
         
@@ -57,59 +90,69 @@ class PPULSECtrl(sshctrl.SSHCtrl):
                 "host" : "130.92.128.165",
                 "username" : "pi",
                 "config_file": "pulser_config.json", or "s_params": [s1, s2,...], "p_params": [p1, p2, ...], "channels": [ch1, ch2,...]],
-                "period": 10, # [ms]
-                "duration": 30 # [s]
+                "period": 10, 
+                "duration": 30
             }
         
-            Note: Channel numbers are 1 to 16, s is from 0 to 255 and p is from 0 to 255.
+            Note: The parameters `s` and `p` are from 0 to 255, `channels` are from 1 to 16, 
+            `period` is given in milliseconds (min. 3ms) and `duration` is given in seconds.
 
         Args:
             config_path (str): Path to the main config.json file.
         """
+        if pulser_config is not None:
+            self.config = pulser_config
 
-        # Check if a config file was given or the singles parmaeters
+        required_single_parameters = ["s_params", "p_params", "channels"]
+
         if "config_file" in self.config:
-            pulser_config_file = os.path.abspath(self.config["config_file"])
-            logger.debug(f"Using pulser configuration file: {pulser_config_file}.")
-
-            # Check if the external file exists
-            if os.path.exists(pulser_config_file):
-                command = 'ppulse set-channels-file -f {pulser_config_file}' 
-                self.run_command(command)
-            else:
-                logger.error(f"Specified pulser config file not found: {pulser_config_file}.")
-                raise FileNotFoundError(f"Specified pulser config file not found.")
-        
-        elif "s_params" in self.config and "p_params" in self.config and "channels" in self.config:
-            logger.debug("Using pulser configuration parameters from config file")
-            for i, channel in enumerate(self.config["channels"]):
-                s_param = int(self.config["s_params"][i])
-                p_param = int(self.config["p_params"][i])
-
-                if s_param is None or p_param is None:
-                    logger.error(f"Missing s_param or p_param for channel {channel} in config.")
-                    raise ValueError(f"Missing s_param or p_param for channel {channel} in config.")
+            self._set_config_file()
+            
+            
+        elif all(parameter in self.config for parameter in required_single_parameters): 
                 
-                command = f"ppulse ... --channel {channel} --s_param {s_param} --p_param {p_param}"
-                logger.debug(f"Setting pulser configuration for channel {channel}: s_param={s_param}, p_param={p_param}")
+            # Check that they have the same length
+            if len(set(len(self.config[k]) for k in required_single_parameters)) > 1:
+                raise ValueError("Config lists must have equal length")
+
+            logger.debug("Using pulser configuration parameters")
+
+            for channel, s_param, p_param in zip(self.config["channels"], self.config["s_params"], self.config["p_params"]):
+                
+                command = f"ppulse set-channel -ch {channel} -s {s_param} -p {p_param}"
                 self.run_command(command)
+
+                logger.debug(f"Set pulser configuration for channel {channel}: s_param={s_param}, p_param={p_param}")
 
         else:
             logger.error("Pulser configuration must include either 'config_file' or 's_params', 'p_params', and 'channels'.")
             raise ValueError("Pulser configuration must include either 'config_file' or 's_params', 'p_params', and 'channels'.")
 
         # Set period parameter
-        self.period = int(self.config.get("period"))
-        command = f"ppulse set-trigger -p {self.period}"
+        self._set_period()
+
+    #-----------------------
+    # Main function
+    #-----------------------
+
+    def run_pulser(self, config_file: str = None, period: int = None, duration: int = None):
+        """
+            Runs the pulser with the specified configuration. If the arguments are provided, use them, else
+            it use the ones from the initialization config.
+        """ 
+        if config_file is not None:
+            self.config["config_file"] = config_file
+            self._set_config_file()
+
+        if period is not None:
+            self.config["period"] = period
+            self._set_period()
+
+        if duration is not None:
+            self.config["duration"] = duration
+
+        command = f"ppulse run-trigger -d {int(self.config.get('duration'))}"
+        logger.debug(f"Running pulser for duration: {int(self.config.get('duration'))} seconds with period: {int(self.config.get('period'))} ms")
         self.run_command(command)
 
-        # Get duration parameter
-        self.duration = int(self.config.get("duration"))
 
-    def run_pulser(self):
-        """
-            Runs the pulser with the specified configuration.
-        """
-        command = f"ppulse run-trigger -d {self.duration}"
-        logger.debug(f"Running pulser for duration: {self.duration} seconds with period: {self.period} ms")
-        self.run_command(command)

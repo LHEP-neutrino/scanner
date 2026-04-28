@@ -11,11 +11,12 @@ logger.setLevel(logging.INFO)
 # Create a logbook and a file handler
 # Get the directory where THIS file (logger.py) is located
 current_file_path = os.path.abspath(__file__)
-src_dir = os.path.dirname(current_file_path)
-module_dir = os.path.dirname(src_dir)
+module_dir = os.path.dirname(current_file_path)
+src_dir = os.path.dirname(module_dir)
+project_dir = os.path.dirname(src_dir)
 
 # Define the log folder inside the module directory
-log_dir = os.path.join(module_dir, "log")
+log_dir = os.path.join("../", project_dir, "log")
 log_file_name = "scanctrl.log"
 log_file_path = os.path.join(log_dir, log_file_name)
 

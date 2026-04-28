@@ -1,7 +1,11 @@
 import os
+import shutil
+import json
+import csv
 
 import scanctrl.sshctrl as sshctrl  
 from scanctrl.logger import logger # Import the global logger
+
 
 class SUPPLRCtrl(sshctrl.SSHCtrl):
     """
@@ -24,8 +28,24 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
             hostname=hostname,
             password_env_var=password_env_var
         )
+
         self._check_server_status()
         
+        self.biased_channels = {}
+        self.boards = self.config.get("boards", None)
+        self.set_default_bias(self.boards)
+
+
+    def __close__(self):
+        """
+        Ensure the SSH connection is closed when the object is destroyed.
+        """
+        self.set_default_bias()
+        self.close()
+
+    #-----------------------
+    # Helper functions
+    # -----------------------  
 
     def _check_server_status(self):
         """
@@ -41,82 +61,243 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
         except Exception as e:
             logger.error(f"Failed to connect to SUPPLR server: {e}")
             raise ConnectionError(f"Failed to connect to SUPPLR server")
-
-    def set_bias_voltage(self, supplr_config_path : str  = None, board: int | list[int] = None, channels: list[int] = None, bias_voltage: int | float | list[float] | list[int] = None):
+        
+        
+    def _reset_folder(path : str):
         """
-        Sets the SiPM bias voltage on the remote server.
-
-            The command supports multiple ways to configure the bias voltage:
-        1. Use the SUPPLR configuration file at the provided path.
-        2. If `bias_voltage` is not provided, look in the config passed during initialization FOR ALL PARAMETERS (can be either a supplr config file or single parameters).
-        3. If `bias_voltage` is given as a list, a similar list of `channels` must be given, and each voltage will be applied to the corresponding channel.
-        4. If `bias_voltage` is given as an int or float, the same bias voltage will be applied to the channels `channels`.
-           Additionally if `channels` is not provided, the bias voltage will be applied to all the channels.
+        Resets a folder by deleting all its contents and recreating it. If the folder does not exist,
+        it will be created.
 
         Args:
-            supplr_config_path (str): Path to the SUPPLR configuration file on the remote server.
-            board (int | list[int]): The board number(s).
-            channels (list[int]): The channel number(s).
-            bias_voltage (int | float | list[float] | list[int]): The bias voltage.
+            path (str): The path to the folder to reset.
         """
-        self.board = int(self.config.get("board"))
+        if os.path.exists(path):
+            # Recursively delete everything inside and the folder itself
+            shutil.rmtree(path)
+    
+        # Recreate the folder with default permissions
+        os.makedirs(path, exist_ok=True)
 
-        if supplr_config_path is not None:
-            self.supplr_config_file = os.path.abspath(supplr_config_path)
-            logger.debug(f"Using SUPPLR configuration file directly provided: {self.supplr_config_file}")
 
-            # Check if the external file exists
-            if os.path.exists(self.supplr_config_file):
-                command = 'supplr set-channel-file --board {self.board} --file {self.supplr_config_file}' 
-                self.run_command(command)
-            else:
-                logger.error(f"Specified SUPPLR config file not found: {self.supplr_config_file}.")
-                raise FileNotFoundError(f"Specified SUPPLR config file not found.")
+    def _load_bias_config(csv_path : str) -> dict:
+        """
+        Reads a CSV file (chan, voltage) and returns a dict: {channel: voltage}.
 
-        elif bias_voltage is None:
-            # Check the configuration file, is a supplr config file provided or the singles parameters
-            if "config_file" in self.config:
-                self.supplr_config_file = os.path.abspath(self.config["config_file"])
-                logger.debug(f"Using SUPPLR configuration file from initialization: {self.supplr_config_file}")
+        Args:
+            csv_path (str): The path to the CSV configuration file.
+        """
+        config = {}
+        try:
+            with open(csv_path, mode='r', newline='') as csvfile:
+                reader = csv.reader(csvfile)
+                for row_num, row in enumerate(reader, start=1):
+                    # Skip empty lines
+                    if not row or all(cell.strip() == '' for cell in row):
+                        continue
+                    
+                    if len(row) < 2:
+                        logger.warning(f"Skipping row {row_num}: Not enough columns.")
+                        continue
 
-                # Check if the external file exists
-                if os.path.exists(self.supplr_config_file):
-                    command = 'supplr set-channel-file --board {self.board} --file {self.supplr_config_file}' 
-                    self.run_command(command)
-                else:
-                    logger.error(f"Specified SUPPLR config file not found: {self.supplr_config_file}.")
-                    raise FileNotFoundError(f"Specified SUPPLR config file not found.")
-            
-            elif "bias_voltage" in self.config:
-                self.bias_voltage = self.config["bias_voltage"]
-                logger.debug(f"Using bias voltage from initialization config: {self.bias_voltage} V")
-                if isinstance(self.bias_voltage, (int, float)):
-                    if "channels" in self.config:
-                        for chan in self.config["channels"]:
-                            command = f"supplr set-channel --board {self.board} --channel {chan} --voltage {self.bias_voltage}"
-                            self.run_command(command)
-                    else:
-                        command = f"supplr set-channels --board {self.board} --voltage {self.bias_voltage}"
-                        logger.debug(f"Setting bias voltage for all channels to: {self.bias_voltage} V")
-                        self.run_command(command)
+                    try:
+                        channel = int(row[0].strip())
+                        voltage = float(row[1].strip())
+                        config[channel] = voltage
+                    except ValueError:
+                        logger.warning(f"Skipping row {row_num}: Invalid number format.")
+                        continue
+                        
+            if not config:
+                logger.warning(f"No valid data found in {csv_path}")
+                
+        except FileNotFoundError:
+            logger.error(f"Configuration file not found: {csv_path}")
+            raise
+        except Exception as e:
+            logger.error(f"Error reading {csv_path}: {e}")
+            raise
 
-                elif isinstance(self.bias_voltage, list) and "channels" in self.config:
-                    for voltage, channel in zip(self.bias_voltage, self.config["channels"]):
-                        command = f"supplr set-channel --board {self.board} --channel {channel} --voltage {voltage}"
-                        self.run_command(command)
+        return config
 
-            else:
-                logger.error("SUPPLR configuration must minimally include either 'config_file' or 'bias_voltage'.")
-                raise ValueError("SUPPLR configuration must include either 'config_file' or 'bias_voltage' and 'channels'.")
-            
-        elif isinstance(bias_voltage, (int, float)):
-            # TO ADD
-            logger.debug(f"Not implemented yet")
 
-        elif isinstance(bias_voltage, list) and channels is not None:
-            # TO ADD
-            logger.debug(f"Not implemented yet")
+    def _save_biased_channels(self):
+        """
+        Saves the current biased channels information to a JSON file in the temporary folder.
+        """
+        # reset folder
+        self._reset_folder(self.config.get("tmp_config_folder"))
+        # write the updated file
+        with open(os.path.join(self.config.get("tmp_config_folder"), "biased_channels.json"), 'w') as f:
+            json.dump(self.biased_channels, f)
 
+
+    def _set_bias_file(self, board: int, config_file: str = None, default_voltage: bool = False):
+        """
+        Helper function to set the bias voltage using a configuration file for a specific board.
+
+        Args:
+            board (int): The board number.
+            config_file (str, optional): The path to the CSV supplr configuration file.
+            default_voltage (bool, optional): If True, sets all channels to the default voltage instead of using a config file.
+        """
+
+        if default_voltage:
+            desired_bias = {chan: self.config.get("default_voltage") for chan in range(1, 129)}
         else:
-            logger.error("Invalid bias parameter congiguration. check --help for valid options.")
-            raise ValueError("Invalid bias voltage configuration.")
+            desired_bias = self._load_bias_config(config_file)
+        
+        if self.biased_channels.get(board, {}) == desired_bias:
+            logger.debug(f"The board {board} is already set to the desired bias configuration. Skipping command.")
+            return
+         
+        if default_voltage:
+            config_file_remote = self.config.get("default_config_file_remote")
+            
+        else:
+            # Pass the config file to the raspi
+            config_folder_remote = self.config.get("tmp_config_folder_remote")
+            self.transfer_file(config_file, config_folder_remote, os.path.basename(config_file))
+            config_file_remote = os.path.join(config_folder_remote, os.path.basename(config_file))
+
+        command = f"supplr set-channel-file --board {board} --file {config_file_remote}"
+        self.run_command(command)
+        self.biased_channels[board] = desired_bias
+        logger.debug(f"Set bias voltage for board {board} using config file: {config_file}")
+
+        self._save_biased_channels()
+
+
+    def _set_bias_channel(self, board: int, channel: int, voltage: float):
+        """
+        Helper function to set the bias voltage for a specific channel on a specific board.
+
+        Args:            
+            board (int): The board number.
+            channel (int): The channel number.
+            voltage (float): The desired bias voltage.
+        """
+        if self.biased_channels.get(board, {}).get(channel, None) == voltage:
+            logger.debug(f"Channel {channel} on board {board} is already set to {voltage} V. Skipping command.")
+            return
+        
+        command = f"supplr set-channel --board {board} --channel {channel} --voltage {voltage}"
+        self.run_command(command)
+
+        self.biased_channels[board][channel] = voltage
+        logger.debug(f"Set bias voltage for board {board} channel {channel} to {voltage} V")
+
+        self._save_biased_channels()
+
+
+    def _set_bias_channels(self, board: int, voltage: float):
+        """
+        Helper function to set the same bias voltage for all channels on a specific board.
+
+        Args:
+            board (int): The board number.
+            voltage (float): The desired bias voltage.
+        """
+        desired_bias = {chan: voltage for chan in range(1, 129)}
+
+        if self.biased_channels.get(board, {}) == desired_bias:
+            logger.debug(f"All channels on board {board} are already set to {voltage} V. Skipping command.")
+            return
+
+        command = f"supplr set-channels --board {board} --voltage {voltage}"
+        self.run_command(command)
+        self.biased_channels[board] = desired_bias
+        logger.debug(f"Set bias voltage for all channels on board {board} to {voltage} V")
+
+        self._save_biased_channels()
+    
+    #-----------------------
+    # Main functions
+    #-----------------------
+       
+    def set_default_bias(self, boards: list[int] = None, channels: list[int] = None):
+        """
+        Sets the bias voltage to a default value (e.g., 1V).
+
+        1. If no arguments are provided, the default bias will be applied to all channels
+            on the boards where at least one channel is biased.
+        2. If only `boards` is provided, the default bias will be applied to all channels on the specified board(s).
+        3. If both `boards` and `channels` are provided, the default bias will be applied only to the specified
+            channels on the specified board(s). e.g. [board15, board16] and [chan2, chan5] will result in chan2 of board 15 and chan5 or board 16 to be biased.
+        
+        Args:
+            boards (list[int], optional): The board number(s).
+            channels (list[int], optional): The channel number(s).
+        """
+        if boards is None and channels is None:
+            logger.debug("Setting default bias voltage for biased boards.")
+            for board in self.biased_channels.keys():
+                self._set_bias_file(board, default_voltage = True)
+        elif boards is not None and channels is None:
+            logger.debug(f"Setting default bias voltage for all channels on boards: {boards}.")
+            for board in boards:
+                self._set_bias_file(board, default_voltage = True)
+        
+        elif boards is not None and channels is not None:
+            for board, channel in zip(boards, channels):
+                self._set_bias_channel(board, channel, self.config.get("default_voltage"))
+
+        
+    def set_bias_voltage_file(self, boards:list[int] = None, supplr_config_paths :list[str] = None):
+        """
+        Sets the SiPM bias voltage on the remote server using configuration files. 
+
+        If the arguments are not provided, the method will use the ones from the initialization config.
+
+        Args:
+            boards (list[int], optional): The board number(s) 
+            supplr_config_paths (list[str], optional): List of paths to the SUPPLR configuration files corresponding to each board.
+        """
+
+        if supplr_config_paths is None:
+            supplr_config_paths = self.config.get('config_files')
+
+        if boards is None:
+            boards = self.config.get("boards")
+
+        for board, config_file in zip(boards, supplr_config_paths):
+            self._set_bias_file(board, config_file=config_file)
+
+        
+    def set_bias_voltage_channels(self, boards: int | list[int] = None, channels: list[int] = None, bias_voltages: float | list[float] = None):
+        """
+        Sets the SiPM bias voltage on the remote server for the specified channels, one channel at a time.
+    
+        If the arguments are not provided, the method will use the ones from the initialization config.
+
+        Args:
+            boards (int | list[int], optional): The board number(s).
+            channels (list[int], optional): The channel number(s).
+            bias_voltages (float | list[float], optional): The bias voltage.
+        """
+        # Set the values
+        if boards is None:
+            boards = self.config.get("boards")
+
+        if channels is None:
+            channels = self.config.get("channels")
+
+        if bias_voltages is None:
+            bias_voltages = self.config.get("bias_voltages")
+
+        # Handle types (int vs list, float vs list)
+        if isinstance(boards, int):
+            boards = [boards]
+
+        if isinstance(bias_voltages, float):
+            bias_voltages = [bias_voltages] * len(channels)
+       
+        # Check that the lengths of the channel and bias_voltages lists match
+        if len(bias_voltages) != len(channels):
+            logger.error(f"Length of bias_voltages {{len(bias_voltages)}} must match length of channels {{len(channels)}}.")
+            raise ValueError("Length of bias_voltages must match length of channels.")
+
+        # Set the bias voltages for each channel individually
+        for board in boards:
+            for channel, voltage in zip(channels, bias_voltages):
+                self._set_bias_channel(board, channel, voltage)
+        

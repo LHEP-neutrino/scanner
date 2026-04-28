@@ -12,8 +12,9 @@ import numpy as np
 
 from scanctrl.printerctrl import PrinterCtrl
 from scanctrl.logger import logger, update_log_levels 
-from scanctrl.daqctrl import run_daq
-import scanctrl.ppulsectrl as ppulsectrl
+from scanctrl.daqctrl import run_daq, start_daq, stop_daq
+from scanctrl.ppulsectrl import PPULSECtrl
+from scanctrl.supplrctrl import SUPPLRCtrl
 
 LOCK_FILE = "/tmp/scanner.lock"
 
@@ -86,6 +87,13 @@ def _load_config(config_file):
     else:
         logger.info("No logging configuration found in config file. Using default INFO level.")  
 
+    # 3. Check that the data folder exists, if not create it
+    data_folder = os.path.abspath(config["scan"]["data_folder"])  
+    if not os.path.exists(data_folder):   
+        logger.info(f"Data folder does not exist. Creating it at: {data_folder}")
+        os.makedirs(data_folder)
+
+    config["scan"]["data_folder"] = data_folder
 
     return config
 
@@ -144,16 +152,89 @@ def _print_progress_bar(iteration, total, prefix='', suffix='', length=20, fill=
         print() # Print a newline at the end
 
 
-def _full_scan(printerctrl, scan_config):
+def _find_data_file(data_folder, max_time_diff: int = 300):
+    """
+    Find the most recent data file in the specified folder. If `cutoff_time` is provided,
+    it checks that the most recent file was modified within that time difference (in seconds)
+    from the current time. If not, it returns None and logs a warning.
+
+    Args:
+        data_folder (str): Path to the folder where scan data is saved.
+        max_time_diff (int, optional): Maximum allowed modification time difference in seconds. Defaults to 300.
+
+    Returns:
+        str: The name of the most recent data file.
+    """
+    cutoff_time = time.time()-max_time_diff
+
+    files = [os.path.join(data_folder, f) for f in os.listdir(data_folder) if (os.path.isfile(os.path.join(data_folder, f)) and f.endswith('.data'))]
+    if not files:
+        logger.warning(f"No data files found in folder: {data_folder}")
+        return None
+    
+    latest_file = max(files, key=lambda f: os.path.getctime(f))
+    modif_time = os.path.getctime(latest_file)
+    if modif_time < cutoff_time:
+        logger.warning(f"Most recent file in folder {data_folder} was modified too long ago.")
+        return None
+        
+    return latest_file
+
+
+def _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder):
+    """
+    Perform a single scan at the specified position.
+
+    Args:
+        printerctrl (PrinterCtrl): The printer controller instance.
+        pulserctrl (PulserCtrl): The pulser controller instance.
+        x (float): X coordinate for the scan.
+        y (float): Y coordinate for the scan.
+        z (float): Z coordinate for the scan.
+        data_folder (str): Path to the folder where scan data will be saved.
+
+    Returns:
+        str: The name of data file corresponding to the point scanned.
+    """
+    logger.debug(f"Scanning at X:{x}, Y:{y}, Z:{z}...")
+    
+    printerctrl.go_to(x, y, z)
+    printerctrl.motor_off()
+
+    start_daq()
+
+    pulserctrl.run_pulser()
+
+    stop_daq()
+    
+    logger.debug("Scan point finished.")
+
+    scan_pt_info = {"x": int(x),
+                    "y": int(y),
+                    "data_file" : _find_data_file(data_folder),
+                    "timestamp": time.strftime("%Y%m%d_%H%M%S")
+                    }
+
+    return scan_pt_info
+
+
+def _full_scan(printerctrl, pulserctrl, scan_config):
     """
         Perform a full scan.
     """
     # From the config file define the scan positions
     scan_params = scan_config["scan_params"]
+    data_folder = scan_config["data_folder"]
+
     scan_coordinates = _compute_scan_coordinates(scan_params)
 
     scan_summary_json = {}
     total_scan_points = len(scan_coordinates)
+
+    scan_summary_json = {"N_scan_points": total_scan_points}
+
+    z  = int(scan_params["z_scan_height"])
+
     for idx, (x, y) in enumerate(scan_coordinates):
         _print_progress_bar(iteration=idx, 
                             total=total_scan_points, 
@@ -161,20 +242,12 @@ def _full_scan(printerctrl, scan_config):
                             suffix=f", Currently: X={x:.2f}, Y={y:.2f}", 
                             length=30
                             )
+        
+        scan_pt_info = _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder)
 
-        # Move the printer to the scan position
-        printerctrl.go_to(x, y, scan_params["z_scan_height"])
-        printerctrl.motors_off()
-
-        #Take data
-        run_daq(data_taking_time=5)
-        # time.sleep(0.5) # simulate data taking
 
         # Register scan info
-        scan_summary_json[f"pos_{idx}"] = { "x": int(x),
-                                            "y": int(y),
-                                            "data_file" : f"scan_point_{idx}"
-                                            }
+        scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
 
     _print_progress_bar(iteration=total_scan_points, 
                         total=total_scan_points, 
@@ -203,7 +276,7 @@ def run_scanner(config_file):
         config = _load_config(config_file)
                 
         # Initialize printer controller with config
-        with PrinterCtrl(config["printer"]) as printer:
+        with PrinterCtrl(config["printer"]) as printerctrl:
         
             # Check with user that the VGA is set correctly
             
@@ -241,42 +314,66 @@ def run_scanner(config_file):
                 time.sleep(3)
 
             # Bias the SiPMs
-            logger.info(f"The scan {scan_name} will start shortly. Biasing the SiPMs...")
-            time.sleep(3)
-            logger.info("SiPMs biased.")
+            with SUPPLRCtrl(config["supplr"]) as supplrctrl:
+                logger.info(f"The scan {scan_name} will start shortly. Biasing the SiPMs...")
+                time.sleep(3)
+                logger.info("SiPMs biased.")
 
-            # Perform the scan
-            scan_summary_json = _full_scan(printer, config["scan"])
+                with PPULSECtrl(config["pulser"]) as pulserctrl:
+    
+                    # Perform the scan
+                    scan_summary_json = _full_scan(printerctrl, pulserctrl, config)
 
             # Add scan summary info to the json
             scanner_summary_json["scan_summary"] = scan_summary_json
 
-    return
+            # Save the scan summary json to the data folder
+            summary_path = os.path.join(config["scan"]["data_folder"], f"{scan_name}_summary.json")
 
-def run_point_scan(config_file, x, y, z):
-    """
-    Run a single point scan at the specified position.
+            with open(summary_path, 'w') as f:
+                json.dump(scanner_summary_json, f)
 
-    Args:
-        config_file (str): Path to the configuration file.
-        x (float): X coordinate for the scan.
-        y (float): Y coordinate for the scan.
-        z (float): Z coordinate for the scan.
-    """
-    with ScannerLock(LOCK_FILE):
-        logger.info(f"Running single point scan with config: {config_file} at X:{x}, Y:{y}, Z:{z}")
 
-        config = _load_config(config_file)
+# def run_point_scan(config_file : str, x : int, y : int, z : int, scan_comment: str = None):
+#     """
+#     Run a single point scan at the specified position.
+
+#     Args:
+#         config_file (str): Path to the configuration file.
+#         x (float): X coordinate for the scan.
+#         y (float): Y coordinate for the scan.
+#         z (float): Z coordinate for the scan.
+#     """
+#     with ScannerLock(LOCK_FILE):
+#         logger.info(f"Running single point scan with config: {config_file} at X:{x}, Y:{y}, Z:{z}")
+
+#         config = _load_config(config_file)
+
+#         scan_name = f"{time.strftime('%Y%m%d_%H%M')}_scan_pt_x{x}_y{y}_z{z}"
+
+#         scanner_summary_json = {
+#                 "scan_name": scan_name,
+#                 "config_file": config_file,
+#             }
+        
+#         if scan_comment is not None:
+#             scanner_summary_json["scan_comment"] = scan_comment
                 
-        # Initialize printer controller with config
-        with PrinterCtrl(config["printer"]) as printer:
-            logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}...")
-            printer.go_to(x, y, z)
-            printer.motor_off()
-            logger.info("Start single point scan.")
-            time.sleep(3)
-            logger.info("Single point scan finished.")
-            return
+#         # Bias the SiPMs
+#         with SUPPLRCtrl(config["supplr"]) as supplrctrl:
+#             logger.info(f"The scan {scan_name} will start shortly. Biasing the SiPMs...")
+#             time.sleep(3)
+#             logger.info("SiPMs biased.")
+
+#             with PPULSECtrl(config["pulser"]) as pulserctrl:
+
+#                 # Perform the scan
+#                 scan_summary_json = _scan_pt(printerctrl, pulserctrl, x, y, z, config)
+
+#             # Add scan summary info to the json
+#             scanner_summary_json["scan_summary"] = scan_summary_json
+
+#     return
 
 #-----------------------
 # Debugging functions
@@ -322,6 +419,7 @@ def debug_printerCtrl(config_file):
         except Exception as e:
             logger.error(f"DEBUG Error: {e}")
 
+
 def debug_print_text(text):
     """
     Print the provided text to the terminal.
@@ -333,7 +431,8 @@ def debug_print_text(text):
         logger.info("Running debug-print-text")
         click.echo(text)
         time.sleep(5)
-        logger.info("Done!")
+    
+    logger.info("Done!")
 
 def debug_scan_coordinates(config_file):
     """
@@ -353,11 +452,13 @@ def debug_scan_coordinates(config_file):
     # Compute scan coordinates
     scan_params = config["scan"]["scan_params"]
     scan_coordinates = _compute_scan_coordinates(scan_params)
+
     logger.info(f"Computed {len(scan_coordinates)} scan coordinates")
 
 def debug_pulserctrl():
     """
-    Debug function for the pulser controller. It checks the connection to the pulser server and tries to set the configuration.
+    Debug function for the pulser controller. It checks the connection to the pulser server and
+    tries to set the configuration.
     """
     config_pulser = {
         "host" : "130.92.128.165",
@@ -369,18 +470,36 @@ def debug_pulserctrl():
         "period": 10,
         "duration": 30
     }   
+
     try:
-        with ppulsectrl.PPULSECtrl(config_pulser) as pulserctrl:
+        with PPULSECtrl(config_pulser) as pulserctrl:
             logger.info("Pulser controller initialized successfully.")
             pulserctrl.run_pulser()
     except Exception as e:
         logger.error(f"Failed to initialize pulser controller: {e}")
+
+    logger.info("Done!")
 
 def debug_daqctrl():
     """
     Debug function for the DAQ controller. It runs a simple data taking session to check if the DAQ is working correctly.
     """
     logger.info("Running debug-daqctrl")
+
     run_daq(data_taking_time=10)
+
     logger.info("Done!")
 
+
+
+def debug_supplrctrl(config_file):
+    """
+    Debug function for the SiPM bias voltage control. It checks the connection to the supply server and tries to set the bias voltage.
+    """
+    logger.info("Running debug-supplrctrl")
+
+    with SUPPLRCtrl(config_file["supplr"]) as supplrctrl:
+        logger.info("Supply controller initialized successfully.")
+        supplrctrl.set_bias_channels()
+
+    logger.info("Done!")
