@@ -181,7 +181,7 @@ def _find_data_file(data_folder : str, max_time_diff: int = 300) -> str | None:
     return latest_file
 
 
-def _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder) -> dict:
+def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, x : float, y : float, z : float, data_folder : str) -> dict:
     """
     Perform a single scan at the specified position.
 
@@ -248,8 +248,8 @@ def _full_scan(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, scan_config :
                             length=30
                             )
         
+        # Perform the scan at the current point
         scan_pt_info = _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder)
-
 
         # Register scan info
         scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
@@ -321,7 +321,7 @@ def run_scanner(config_file : str):
             # Bias the SiPMs
             with SUPPLRCtrl(supplr_config = config["supplr"]) as supplrctrl:
                 logger.info(f"The scan {scan_name} will start shortly. Biasing the SiPMs...")
-                time.sleep(3)
+                supplrctrl.set_bias_voltage_channels()
                 logger.info("SiPMs biased.")
 
                 with PPULSECtrl(pulser_config = config["pulser"]) as pulserctrl:
@@ -428,7 +428,7 @@ def debug_printerCtrl(config_file : str):
             logger.error(f"DEBUG Error: {e}")
 
 
-def debug_print_text(text):
+def debug_print_text(text: str):
     """
     Print the provided text to the terminal.
 
@@ -454,8 +454,6 @@ def debug_scan_coordinates(config_file : str):
     
     # Load configuration
     config = _load_config(config_file)
-
-    # scan_summary_json = _full_scan(None, config['scan'])
 
     # Compute scan coordinates
     scan_params = config["scan"]["scan_params"]
