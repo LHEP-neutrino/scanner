@@ -498,7 +498,9 @@ def debug_supplrctrl(config_file):
     """
     logger.info("Running debug-supplrctrl")
 
-    with SUPPLRCtrl(config_file["supplr"]) as supplrctrl:
+    config = _load_config(config_file)
+
+    with SUPPLRCtrl(config["supplr"]) as supplrctrl:
         logger.info("Supply controller initialized successfully.")
         supplrctrl.set_bias_channels()
 
