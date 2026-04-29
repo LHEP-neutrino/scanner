@@ -63,7 +63,7 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
             raise ConnectionError(f"Failed to connect to SUPPLR server")
         
         
-    def _reset_folder(path : str):
+    def _reset_folder(self, path : str):
         """
         Resets a folder by deleting all its contents and recreating it. If the folder does not exist,
         it will be created.
@@ -79,7 +79,7 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
         os.makedirs(path, exist_ok=True)
 
 
-    def _load_bias_config(csv_path : str) -> dict:
+    def _load_bias_config(self, csv_path : str) -> dict:
         """
         Reads a CSV file (chan, voltage) and returns a dict: {channel: voltage}.
 
@@ -125,7 +125,8 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
         Saves the current biased channels information to a JSON file in the temporary folder.
         """
         # reset folder
-        self._reset_folder(self.config.get("tmp_config_folder"))
+        print(f'\n{self.config.get("tmp_config_folder")} type: {type(self.config.get("tmp_config_folder"))}')
+        self._reset_folder(path = self.config.get("tmp_config_folder"))
         # write the updated file
         with open(os.path.join(self.config.get("tmp_config_folder"), "biased_channels.json"), 'w') as f:
             json.dump(self.biased_channels, f)

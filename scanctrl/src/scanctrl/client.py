@@ -512,6 +512,6 @@ def debug_supplrctrl(config_file : str):
 
     with SUPPLRCtrl(supplr_config = config["supplr"]) as supplrctrl:
         logger.info("Supply controller initialized successfully.")
-        supplrctrl.set_bias_channels()
+        supplrctrl.set_bias_voltage_channels()
 
     logger.info("Done!")
