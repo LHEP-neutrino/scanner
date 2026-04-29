@@ -35,13 +35,21 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
         self.board = self.config.get("board", None)
         self.set_default_bias(self.board)
 
+    def __enter__(self):
+        """
+            Enter context manager. (Allow the class to be used with 'with' statement for automatic cleanup)
+        """
+        return self
 
-    def __close__(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         """
-        Ensure the SSH connection is closed when the object is destroyed.
+            Exit context manager:
+                - Move printer head close to reference position (to avoid wrong initialization in next scan)
+                - ensure port is closed.
         """
+        logger.info("Exiting SUPPLRCtrl: Setting default bias and closing connection.")
         self.set_default_bias()
-        self.close()
+
 
     #-----------------------
     # Helper functions
@@ -125,8 +133,7 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
         Saves the current biased channels information to a JSON file in the temporary folder.
         """
         # reset folder
-        print(f'\n{self.config.get("tmp_config_folder")} type: {type(self.config.get("tmp_config_folder"))}')
-        self._reset_folder(path = self.config.get("tmp_config_folder"))
+        self._reset_folder(self.config.get("tmp_config_folder"))
         # write the updated file
         with open(os.path.join(self.config.get("tmp_config_folder"), "biased_channels.json"), 'w') as f:
             json.dump(self.biased_channels, f)
