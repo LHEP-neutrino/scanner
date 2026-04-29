@@ -44,7 +44,7 @@
         "default_voltage" : 1,
         "tmp_config_folder": "/path/to/project/config/tmp/supplr",
         "tmp_config_folder_remote": "/home/pi/configs/supplr_configs/tmp/",
-        "boards": 15,
+        "board": 15,
         "channels": [1,2,3,4,5,6,7],
         "bias_voltages": 56.0
     },
@@ -56,9 +56,9 @@
         "default_voltage" : 1,
         "tmp_config_folder": "/path/to/project/config/tmp/supplr",
         "tmp_config_folder_remote": "/home/pi/configs/supplr_configs/tmp/",
-        "boards": 15,
-        "channels": [1,2,3,4,5,6,7],
-        "bias_voltages": 56.0
+        "board": 15,
+        "channels": [1,2,3,4],
+        "bias_voltages": [56.0, 55.9, 56.3, 57.1]
     },
     "supplr_alt2": {
         "host": "130.92.128.188",
@@ -68,7 +68,8 @@
         "default_voltage" : 1,
         "tmp_config_folder": "/path/to/project/config/tmp/supplr",
         "tmp_config_folder_remote": "/home/pi/configs/supplr_configs/tmp/",
-        "config_files" : "path/to/project/scanctrl/config/supplr/supplr_config.csv"
+        "board": 15,
+        "config_file" : "path/to/project/scanctrl/config/supplr/supplr_config.csv"
     },
     "logging": {
         "log_level": "INFO",

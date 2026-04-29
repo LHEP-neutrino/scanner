@@ -56,12 +56,12 @@ class ScannerLock:
 # Helper functions
 #-----------------------
 
-def _load_config(config_file):
+def _load_config(config_file : str) -> dict:
     """
     Load the configuration from a JSON file.
 
     Args:
-        config_file (str): Path to the configuration file.
+        config_file (str): Path to the scanctrl configuration file.
 
     Returns:
         dict: The loaded configuration.
@@ -97,15 +97,15 @@ def _load_config(config_file):
 
     return config
 
-def _compute_scan_coordinates(scan_params):
+def _compute_scan_coordinates(scan_params : dict) -> np.ndarray:
     """
-    Compute the scan coordinates based on the scan configuration.
+    Compute the scan coordinates based on the scan parameters.
 
     Args:
         scan_params (dict): The scan parameters containing start_pos, end_pos, and N_steps.
 
     Returns:
-        np.array: An array of scan coordinates ([[X1, Y1], [X2, Y2], ...]).
+        scan_coordinates (np.ndarray): An array of scan coordinates ([[X1, Y1], [X2, Y2], ...]).
     """
     # From the config file define the scan positions
     start_pos = np.array(scan_params["start_pos"], dtype=int)
@@ -128,7 +128,7 @@ def _compute_scan_coordinates(scan_params):
     logger.debug(f"Scan coordinates: {scan_coordinates}")
     return scan_coordinates
 
-def _print_progress_bar(iteration, total, prefix='', suffix='', length=20, fill='='):
+def _print_progress_bar(iteration : int, total : int, prefix : str = '', suffix : str = '', length : int = 20, fill : str = '='):
     """
     Calls in a loop to create a terminal progress bar.
     
@@ -152,7 +152,7 @@ def _print_progress_bar(iteration, total, prefix='', suffix='', length=20, fill=
         print() # Print a newline at the end
 
 
-def _find_data_file(data_folder, max_time_diff: int = 300):
+def _find_data_file(data_folder : str, max_time_diff: int = 300) -> str | None:
     """
     Find the most recent data file in the specified folder. If `cutoff_time` is provided,
     it checks that the most recent file was modified within that time difference (in seconds)
@@ -163,7 +163,7 @@ def _find_data_file(data_folder, max_time_diff: int = 300):
         max_time_diff (int, optional): Maximum allowed modification time difference in seconds. Defaults to 300.
 
     Returns:
-        str: The name of the most recent data file.
+        latest_file (str | None): The name of the most recent data file, or None if no suitable file is found.
     """
     cutoff_time = time.time()-max_time_diff
 
@@ -181,7 +181,7 @@ def _find_data_file(data_folder, max_time_diff: int = 300):
     return latest_file
 
 
-def _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder):
+def _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder) -> dict:
     """
     Perform a single scan at the specified position.
 
@@ -194,7 +194,7 @@ def _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder):
         data_folder (str): Path to the folder where scan data will be saved.
 
     Returns:
-        str: The name of data file corresponding to the point scanned.
+        scan_pt_info (dict): A dictionary containing information about the scanned point.
     """
     logger.debug(f"Scanning at X:{x}, Y:{y}, Z:{z}...")
     
@@ -218,9 +218,14 @@ def _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder):
     return scan_pt_info
 
 
-def _full_scan(printerctrl, pulserctrl, scan_config):
+def _full_scan(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, scan_config : dict) -> dict:
     """
-        Perform a full scan.
+    Perform a full scan.
+
+    Args:
+        printerctrl (PrinterCtrl): The printer controller instance.
+        pulserctrl (PulserCtrl): The pulser controller instance.
+        scan_config (dict): The scan configuration.
     """
     # From the config file define the scan positions
     scan_params = scan_config["scan_params"]
@@ -262,12 +267,12 @@ def _full_scan(printerctrl, pulserctrl, scan_config):
 # CLI Commands
 #-----------------------
 
-def run_scanner(config_file):
+def run_scanner(config_file : str):
     """
     Run the scanner with the specified configuration file.
 
     Args:
-        config_file (str): Path to the configuration file.
+        config_file (str): Path to the scanctrl configuration file.
     """
     with ScannerLock(LOCK_FILE):
         logger.info(f"Running scanner with config: {config_file}")
@@ -276,7 +281,7 @@ def run_scanner(config_file):
         config = _load_config(config_file)
                 
         # Initialize printer controller with config
-        with PrinterCtrl(config["printer"]) as printerctrl:
+        with PrinterCtrl(config = config["printer"]) as printerctrl:
         
             # Check with user that the VGA is set correctly
             
@@ -314,12 +319,12 @@ def run_scanner(config_file):
                 time.sleep(3)
 
             # Bias the SiPMs
-            with SUPPLRCtrl(config["supplr"]) as supplrctrl:
+            with SUPPLRCtrl(supplr_config = config["supplr"]) as supplrctrl:
                 logger.info(f"The scan {scan_name} will start shortly. Biasing the SiPMs...")
                 time.sleep(3)
                 logger.info("SiPMs biased.")
 
-                with PPULSECtrl(config["pulser"]) as pulserctrl:
+                with PPULSECtrl(pulser_config = config["pulser"]) as pulserctrl:
     
                     # Perform the scan
                     scan_summary_json = _full_scan(printerctrl, pulserctrl, config)
@@ -379,9 +384,12 @@ def run_scanner(config_file):
 # Debugging functions
 #-----------------------
 
-def debug_printerCtrl(config_file):
+def debug_printerCtrl(config_file : str):
     """
-        Debug function for the printer controller. Make a little and cute square to test the printer movements and the connection.
+    Debug function for the printer controller. Make a little and cute square to test the printer movements and the connection.
+
+    Args:
+        config_file (str): Path to the scanctrl configuration file.
     """
 
     with ScannerLock(LOCK_FILE):
@@ -392,7 +400,7 @@ def debug_printerCtrl(config_file):
                 
         # Initialize printer controller with config
         try:
-            with PrinterCtrl(config["printer"]) as printer:
+            with PrinterCtrl(config = config["printer"]) as printer:
                 # Move to test positions
                 x, y, z = 200, 200, 20
                 logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
@@ -434,12 +442,12 @@ def debug_print_text(text):
     
     logger.info("Done!")
 
-def debug_scan_coordinates(config_file):
+def debug_scan_coordinates(config_file : str):
     """
     Debug function to compute and print the scan coordinates based on the configuration file.
 
     Args:
-        config_file (str): Path to the configuration file.
+        config_file (str): Path to the scanctrl configuration file.
     """
     
     logger.info(f"Running debug-scan-coordinates with config: {config_file}")
@@ -455,24 +463,20 @@ def debug_scan_coordinates(config_file):
 
     logger.info(f"Computed {len(scan_coordinates)} scan coordinates")
 
-def debug_pulserctrl():
+def debug_pulserctrl(config_file : str):
     """
     Debug function for the pulser controller. It checks the connection to the pulser server and
     tries to set the configuration.
+
+    Args:
+        config_file (str): Path to the scanctrl configuration file.
     """
-    config_pulser = {
-        "host" : "130.92.128.165",
-        "username" : "pi",
-        "password_env_var" : "SSH_PASSWORD",
-        "s_params": [0],
-        "p_params": [0],
-        "channels": [1],
-        "period": 10,
-        "duration": 30
-    }   
+    logger.info(f"Running debug-pulserctrl with config: {config_file}")
+
+    config = _load_config(config_file)
 
     try:
-        with PPULSECtrl(config_pulser) as pulserctrl:
+        with PPULSECtrl(config = config["pulser"]) as pulserctrl:
             logger.info("Pulser controller initialized successfully.")
             pulserctrl.run_pulser()
     except Exception as e:
@@ -480,27 +484,33 @@ def debug_pulserctrl():
 
     logger.info("Done!")
 
-def debug_daqctrl():
+def debug_daqctrl(data_taking_time : int = 10):
     """
     Debug function for the DAQ controller. It runs a simple data taking session to check if the DAQ is working correctly.
+
+    Args:
+        data_taking_time (int, optional): The duration of the data taking in seconds. Defaults to 10.
     """
     logger.info("Running debug-daqctrl")
 
-    run_daq(data_taking_time=10)
+    run_daq(data_taking_time=data_taking_time)
 
     logger.info("Done!")
 
 
 
-def debug_supplrctrl(config_file):
+def debug_supplrctrl(config_file : str):
     """
     Debug function for the SiPM bias voltage control. It checks the connection to the supply server and tries to set the bias voltage.
+
+    Args:
+        config_file (str): Path to the scanctrl configuration file.
     """
     logger.info("Running debug-supplrctrl")
 
     config = _load_config(config_file)
 
-    with SUPPLRCtrl(config["supplr"]) as supplrctrl:
+    with SUPPLRCtrl(supplr_config = config["supplr"]) as supplrctrl:
         logger.info("Supply controller initialized successfully.")
         supplrctrl.set_bias_channels()
 

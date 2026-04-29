@@ -12,7 +12,7 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
     Controller for the SiPM bias voltage (SUPPLR) used in the scanning setup.
     Inherits from SSHCtrl to manage remote command execution.
     """
-    def __init__(self, username: str = None, hostname: str = None, password_env_var: str = None, supplr_config: dict = None):
+    def __init__(self, supplr_config: dict, username: str = None, hostname: str = None, password_env_var: str = None):
         
         self.config = supplr_config
         
@@ -32,8 +32,8 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
         self._check_server_status()
         
         self.biased_channels = {}
-        self.boards = self.config.get("boards", None)
-        self.set_default_bias(self.boards)
+        self.board = self.config.get("board", None)
+        self.set_default_bias(self.board)
 
 
     def __close__(self):
@@ -214,79 +214,77 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
     # Main functions
     #-----------------------
        
-    def set_default_bias(self, boards: list[int] = None, channels: list[int] = None):
+    def set_default_bias(self, board: int = None, channels: list[int] = None):
         """
         Sets the bias voltage to a default value (e.g., 1V).
 
         1. If no arguments are provided, the default bias will be applied to all channels
-            on the boards where at least one channel is biased.
-        2. If only `boards` is provided, the default bias will be applied to all channels on the specified board(s).
-        3. If both `boards` and `channels` are provided, the default bias will be applied only to the specified
-            channels on the specified board(s). e.g. [board15, board16] and [chan2, chan5] will result in chan2 of board 15 and chan5 or board 16 to be biased.
-        
+            on the board where at least one channel is biased.
+        2. If only `board` is provided, the default bias will be applied to all channels on the specified board.
+        3. If both `board` and `channels` are provided, the default bias will be applied only to the specified
+            channels on the specified board. e.g. board15 and [chan2, chan5] will result in chan2 of board 15 and chan5 of board 16 to be biased.
+
         Args:
-            boards (list[int], optional): The board number(s).
+            board (int, optional): The board number.
             channels (list[int], optional): The channel number(s).
         """
-        if boards is None and channels is None:
-            logger.debug("Setting default bias voltage for biased boards.")
+        if board is None:
+            logger.debug("Setting default bias voltage for biased board.")
             for board in self.biased_channels.keys():
                 self._set_bias_file(board, default_voltage = True)
-        elif boards is not None and channels is None:
-            logger.debug(f"Setting default bias voltage for all channels on boards: {boards}.")
-            for board in boards:
+        elif board is not None:
+            if channels is None:
+                logger.debug(f"Setting default bias voltage for all channels on board: {board}.")
+
                 self._set_bias_file(board, default_voltage = True)
         
-        elif boards is not None and channels is not None:
-            for board, channel in zip(boards, channels):
-                self._set_bias_channel(board, channel, self.config.get("default_voltage"))
+            elif board is not None and channels is not None:
+                
+                for channel in channels:
+                    self._set_bias_channel(board, channel, self.config.get("default_voltage"))
 
         
-    def set_bias_voltage_file(self, boards:list[int] = None, supplr_config_paths :list[str] = None):
+    def set_bias_voltage_file(self, board: int = None, supplr_config_path :str = None):
         """
         Sets the SiPM bias voltage on the remote server using configuration files. 
 
         If the arguments are not provided, the method will use the ones from the initialization config.
 
         Args:
-            boards (list[int], optional): The board number(s) 
-            supplr_config_paths (list[str], optional): List of paths to the SUPPLR configuration files corresponding to each board.
+            board (int, optional): The board number.        
+            supplr_config_path (str, optional): Path to the SUPPLR configuration file for the specified board.
         """
 
-        if supplr_config_paths is None:
-            supplr_config_paths = self.config.get('config_files')
+        if supplr_config_path is None:
+            supplr_config_path = self.config.get('config_file')
 
-        if boards is None:
-            boards = self.config.get("boards")
+        if board is None:
+            board = self.config.get("board")
 
-        for board, config_file in zip(boards, supplr_config_paths):
+        for config_file in supplr_config_path:
             self._set_bias_file(board, config_file=config_file)
 
         
-    def set_bias_voltage_channels(self, boards: int | list[int] = None, channels: list[int] = None, bias_voltages: float | list[float] = None):
+    def set_bias_voltage_channels(self, board: int = None, channels: list[int] = None, bias_voltages: float | list[float] = None):
         """
         Sets the SiPM bias voltage on the remote server for the specified channels, one channel at a time.
     
         If the arguments are not provided, the method will use the ones from the initialization config.
 
         Args:
-            boards (int | list[int], optional): The board number(s).
+            board (int, optional): The board number.
             channels (list[int], optional): The channel number(s).
             bias_voltages (float | list[float], optional): The bias voltage.
         """
         # Set the values
-        if boards is None:
-            boards = self.config.get("boards")
+        if board is None:
+            board = self.config.get("board")
 
         if channels is None:
             channels = self.config.get("channels")
 
         if bias_voltages is None:
             bias_voltages = self.config.get("bias_voltages")
-
-        # Handle types (int vs list, float vs list)
-        if isinstance(boards, int):
-            boards = [boards]
 
         if isinstance(bias_voltages, float):
             bias_voltages = [bias_voltages] * len(channels)
@@ -297,7 +295,6 @@ class SUPPLRCtrl(sshctrl.SSHCtrl):
             raise ValueError("Length of bias_voltages must match length of channels.")
 
         # Set the bias voltages for each channel individually
-        for board in boards:
-            for channel, voltage in zip(channels, bias_voltages):
-                self._set_bias_channel(board, channel, voltage)
+        for channel, voltage in zip(channels, bias_voltages):
+            self._set_bias_channel(board, channel, voltage)
         
