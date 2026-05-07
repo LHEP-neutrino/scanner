@@ -330,7 +330,7 @@ def run_scanner(config_file : str):
                 with PPULSECtrl(pulser_config = config["pulser"]) as pulserctrl:
     
                     # Perform the scan
-                    scan_summary_json = _full_scan(printerctrl, pulserctrl, config)
+                    scan_summary_json = _full_scan(printerctrl = printerctrl, pulserctrl = pulserctrl, scan_config = config["scan"])
 
             # Add scan summary info to the json
             scanner_summary_json["scan_summary"] = scan_summary_json

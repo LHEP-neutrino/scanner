@@ -76,8 +76,8 @@ class SSHCtrl:
                 hostname=self.hostname,
                 username=self.username,
                 password=password,
-                allow_agent=True,
-                look_for_keys=True,
+                allow_agent=False,
+                look_for_keys=False,
                 timeout=10
             )
             
