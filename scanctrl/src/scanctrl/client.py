@@ -199,7 +199,7 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, x : float, y : 
     logger.debug(f"Scanning at X:{x}, Y:{y}, Z:{z}...")
     
     printerctrl.go_to(x, y, z)
-    printerctrl.motor_off()
+    printerctrl.motors_off()
 
     start_daq()
 
