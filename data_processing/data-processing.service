@@ -1,0 +1,15 @@
+[Unit]
+Description=Flow and plot new data summary files
+
+[Service]
+Type=oneshot
+# Pass the specific file path that triggered the event
+ExecStart=/full/path/to/data_processing.py $PATH
+WorkingDirectory=/full/path/to/your/script
+User=your_username
+Group=your_group
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

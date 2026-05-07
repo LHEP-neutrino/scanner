@@ -12,6 +12,11 @@ def _send_command(component: str, command: str, port: int):
     """
     Sends a command string to a local UDP port using socat.
     Captures stdout/stderr and logs them at DEBUG level.
+
+    Args:
+        component (str): The name of the component (e.g., "adc64", "evb") for logging purposes.
+        command (str): The command string to send.
+        port (int): The local UDP port to send the command to.
     """
     try:
         # Run socat with capture_output=True to get the output
@@ -38,6 +43,9 @@ def _send_command(component: str, command: str, port: int):
         raise
 
 def start_daq():
+    """
+    Starts the DAQ by sending the appropriate commands to the ADC64 and EVB components.
+    """
     logger.debug("Starting DAQ")
     
     # Start ADC64
@@ -48,6 +56,9 @@ def start_daq():
     time.sleep(1)
 
 def stop_daq():
+    """
+    Stops the DAQ by sending the appropriate commands to the ADC64 and EVB components.
+    """
     logger.debug("Stopping DAQ")
     
     # Stop EVB
@@ -58,6 +69,12 @@ def stop_daq():
     time.sleep(1)
 
 def run_daq(data_taking_time: int = 10):
+    """
+    Runs the DAQ for a specified duration.
+    
+    Args:
+        data_taking_time (int): The duration in seconds for which the DAQ should run. Default is 10 seconds.
+    """
     logger.debug("Starting DAQ")
     
     # Start daq

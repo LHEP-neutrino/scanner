@@ -226,6 +226,9 @@ def _full_scan(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, scan_config :
         printerctrl (PrinterCtrl): The printer controller instance.
         pulserctrl (PulserCtrl): The pulser controller instance.
         scan_config (dict): The scan configuration.
+
+    Returns:
+        scan_summary_json (dict): A dictionary containing a summary of the scan.
     """
     # From the config file define the scan positions
     scan_params = scan_config["scan_params"]
