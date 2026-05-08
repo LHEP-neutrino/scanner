@@ -85,7 +85,7 @@ class DAQCtrl:
             if proc.stderr:
                 logger.debug(f"[{component} Port {port}] STDERR: {proc.stderr.strip()}")
                 
-            logger.info(f"Sent '{command}' to {component} on port {port}")
+            logger.debug(f"Sent '{command}' to {component} on port {port}")
             
         except subprocess.CalledProcessError as e:
             # Log the error details if the command fails

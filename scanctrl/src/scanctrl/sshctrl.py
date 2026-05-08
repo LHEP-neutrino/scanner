@@ -117,7 +117,7 @@ class SSHCtrl:
         """
         self._ensure_connected()
         
-        logger.info(f"Executing generic command: {command}")
+        logger.debug(f"Executing generic command: {command}")
         
         try:
             stdin, stdout, stderr = self._ssh_client.exec_command(command, get_pty=True)
