@@ -12,7 +12,8 @@ import numpy as np
 
 from scanctrl.printerctrl import PrinterCtrl
 from scanctrl.logger import logger, update_log_levels 
-from scanctrl.daqctrl import run_daq, start_daq, stop_daq
+# from scanctrl.daqctrl import run_daq, start_daq, stop_daq
+from scanctrl.daqctrl import DAQCtrl
 from scanctrl.ppulsectrl import PPULSECtrl
 from scanctrl.supplrctrl import SUPPLRCtrl
 
@@ -181,13 +182,14 @@ def _find_data_file(data_folder : str, max_time_diff: int = 300) -> str | None:
     return latest_file
 
 
-def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, x : float, y : float, z : float, data_folder : str) -> dict:
+def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCtrl, x : float, y : float, z : float, data_folder : str) -> dict:
     """
     Perform a single scan at the specified position.
 
     Args:
         printerctrl (PrinterCtrl): The printer controller instance.
         pulserctrl (PulserCtrl): The pulser controller instance.
+        daqctrl (DAQCtrl): The DAQ controller instance.
         x (float): X coordinate for the scan.
         y (float): Y coordinate for the scan.
         z (float): Z coordinate for the scan.
@@ -201,11 +203,11 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, x : float, y : 
     printerctrl.go_to(x, y, z)
     printerctrl.motors_off()
 
-    start_daq()
+    daqctrl.start_daq()
 
     pulserctrl.run_pulser()
 
-    stop_daq()
+    daqctrl.stop_daq()
     
     logger.debug("Scan point finished.")
 
@@ -218,14 +220,15 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, x : float, y : 
     return scan_pt_info
 
 
-def _full_scan(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, scan_config : dict) -> dict:
+def _full_scan(printerctrl : PrinterCtrl, scan_config : dict, pulser_config : dict) -> dict:
     """
     Perform a full scan.
 
     Args:
         printerctrl (PrinterCtrl): The printer controller instance.
-        pulserctrl (PulserCtrl): The pulser controller instance.
         scan_config (dict): The scan configuration.
+        pulser_config (dict): The pulser configuration.
+
 
     Returns:
         scan_summary_json (dict): A dictionary containing a summary of the scan.
@@ -243,26 +246,29 @@ def _full_scan(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, scan_config :
 
     z  = int(scan_params["z_scan_height"])
 
-    for idx, (x, y) in enumerate(scan_coordinates):
-        _print_progress_bar(iteration=idx, 
-                            total=total_scan_points, 
-                            prefix="Scanning in progress:", 
-                            suffix=f", Currently: X={x:.2f}, Y={y:.2f}", 
-                            length=30
-                            )
-        
-        # Perform the scan at the current point
-        scan_pt_info = _scan_pt(printerctrl, pulserctrl, x, y, z, data_folder)
+    with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
+        with DAQCtrl() as daqctrl:
 
-        # Register scan info
-        scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
+            for idx, (x, y) in enumerate(scan_coordinates):
+                _print_progress_bar(iteration=idx, 
+                                    total=total_scan_points, 
+                                    prefix="Scanning in progress:", 
+                                    suffix=f", Currently: X={x:.2f}, Y={y:.2f}", 
+                                    length=30
+                                    )
+                
+                # Perform the scan at the current point
+                scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
 
-    _print_progress_bar(iteration=total_scan_points, 
-                        total=total_scan_points, 
-                        prefix="Scan finished!       :",
-                        suffix=len(", Currently: X={x:.2f}, Y={y:.2f}")*" ",
-                        length=30
-                        )
+                # Register scan info
+                scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
+
+            _print_progress_bar(iteration=total_scan_points, 
+                                total=total_scan_points, 
+                                prefix="Scan finished!       :",
+                                suffix=len(", Currently: X={x:.2f}, Y={y:.2f}")*" ",
+                                length=30
+                                )
 
     return scan_summary_json
 
@@ -327,10 +333,10 @@ def run_scanner(config_file : str):
                 supplrctrl.set_bias_voltage_channels()
                 logger.info("SiPMs biased.")
 
-                with PPULSECtrl(pulser_config = config["pulser"]) as pulserctrl:
+                
     
-                    # Perform the scan
-                    scan_summary_json = _full_scan(printerctrl = printerctrl, pulserctrl = pulserctrl, scan_config = config["scan"])
+                # Perform the scan
+                scan_summary_json = _full_scan(printerctrl = printerctrl, scan_config = config["scan"], pulser_config = config["pulser"])
 
             # Add scan summary info to the json
             scanner_summary_json["scan_summary"] = scan_summary_json
@@ -494,7 +500,8 @@ def debug_daqctrl(data_taking_time : int = 10):
     """
     logger.info("Running debug-daqctrl")
 
-    run_daq(data_taking_time=data_taking_time)
+    with DAQCtrl() as daqctrl:
+        daqctrl.run_daq(data_taking_time=data_taking_time)
 
     logger.info("Done!")
 
