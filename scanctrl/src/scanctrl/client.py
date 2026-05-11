@@ -348,6 +348,13 @@ def run_scanner(config_file : str):
                 json.dump(scanner_summary_json, f)
 
 def printer_calib(config_file):
+    """
+    Calibration the printer position to respect to the LT one.
+
+    Args:
+        config_file:
+
+    """
 
     logger.info(f"Running printer calibration script with config: {config_file}")
         
@@ -396,10 +403,41 @@ def printer_calib(config_file):
             while not click.confirm(f"\nCan it move to the next position ({x}, {y})?"):
                 logger.warning("Waiting...")
                 time.sleep(3)
-                
+
             printerctrl.go_to(x, y, z)
 
+        
+        while click.confirm(f"\nDo you want to add a coordinates?"):
+            coords = click.prompt('\nPlease enter a tuple of 2D coordinates (e.g. (x1,y1)): ', type=str)
+            
+            if coords.strip() == "":
+                click.echo("The coordinates cannot be empty. Please try again.")
+                continue
+                
+            try:
+                # Safely evaluate the input string into a Python list/tuple structure
+                import ast
+                parsed_coord = ast.literal_eval(coords)
+                
+                # Validate each item is a tuple of exactly 2 numeric values
+                if not isinstance(parsed_coord, (tuple, list)):
+                    click.echo(f"Coordinates are not a tuple or list. Please try again")
+                    continue
+                if len(coord) != 2:
+                    click.echo(f"{len(coord)} coordinates were provided, expected 2. PLease try again")
+                    continue
+                if not all(isinstance(pos, (int, float)) for pos in coord):
+                    click.echo(f"Coordinates contain non-numeric values. Please try again")
+                        
+                # If we reach here, the format is correct
+                printerctrl.go_to(x, y, z)
+                
+            except (SyntaxError, ValueError, NameError) as e:
+                click.echo(f"Invalid format: {e}. Please try again using the format [(x1,y1,z1), (x2,y2,z2), ...].")
+                continue
 
+    logger.info("Printer calibration  finished")
+        
 
 
 

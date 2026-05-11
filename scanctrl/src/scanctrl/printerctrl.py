@@ -5,6 +5,10 @@ import time
 
 from scanctrl.logger import logger  # Import the global logger
 
+X_LIM = [40, 360]
+Y_LIM = [60, 360]
+Z_LIM = [19, -1]
+
 class PrinterCtrl:
     """
     Controller for the 3D printer used in the scanning setup.
@@ -166,12 +170,12 @@ class PrinterCtrl:
         Move the printer to the specified position with range checks.
         """
         # Validate range
-        if not (40 <= x <= 360):
-            raise click.ClickException(f"X coordinate ({x}) out of range! Must be in range 40 to 360")
-        if not (60 <= y <= 360):
-            raise click.ClickException(f"Y coordinate ({y}) out of range! Must be in range 60 to 360")
-        if z < 19:
-            raise click.ClickException(f"Z coordinate ({z}) out of range! Must be >= 19")
+        if not (X_LIM[0] <= x <= X_LIM[-1]):
+            raise click.ClickException(f"X coordinate ({x}) out of range! Must be in range {X_LIM[0]} to {X_LIM[-1]}")
+        if not (Y_LIM[0] <= y <= Y_LIM[-1]):
+            raise click.ClickException(f"Y coordinate ({y}) out of range! Must be in range {Y_LIM[0]} to {Y_LIM[-1]}")
+        if z < Z_LIM[0]:
+            raise click.ClickException(f"Z coordinate ({z}) out of range! Must be >= {Z_LIM[0]}")
 
         # Construct G0 command (Rapid Move) and send it
         g_code = f'G0 X{x} Y{y} Z{z}\n'
