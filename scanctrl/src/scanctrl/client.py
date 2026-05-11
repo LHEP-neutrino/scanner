@@ -362,7 +362,10 @@ def printer_calib(config_file):
     config = _load_config(config_file)
 
     with PrinterCtrl(config = config["printer"]) as printerctrl:
+        # Get the z coordinate from the config file
+        z = config["printer"].get("init_pos_LT")[2]  
         parsed_coords = []
+
         while True:
             coords = click.prompt('\nPlease enter a list of 2D coordinates (e.g., [(x1,y1), (x2,y2)]): ', type=str)
             
@@ -394,14 +397,11 @@ def printer_calib(config_file):
                 
             except (SyntaxError, ValueError, NameError) as e:
                 click.echo(f"Invalid format: {e}. Please try again using the format [(x1,y1,z1), (x2,y2,z2), ...].")
-                continue
-
-        # Get the z coordinate from the config file
-        z = config["printer"].get("init_pos_LT")[2]        
+                continue      
 
         for x,y in parsed_coords:
             while not click.confirm(f"\nCan it move to the next position ({x}, {y})?"):
-                logger.warning("Waiting...")
+                logger.info("Waiting...")
                 time.sleep(3)
 
             printerctrl.go_to(x, y, z)
@@ -430,11 +430,13 @@ def printer_calib(config_file):
                     click.echo(f"Coordinates contain non-numeric values. Please try again")
                         
                 # If we reach here, the format is correct
-                printerctrl.go_to(x, y, z)
                 
             except (SyntaxError, ValueError, NameError) as e:
-                click.echo(f"Invalid format: {e}. Please try again using the format [(x1,y1,z1), (x2,y2,z2), ...].")
+                click.echo(f"Invalid format: {e}. Please try again using the format e.g. (x1,y1).")
                 continue
+
+            x, y = parsed_coords
+            printerctrl.go_to(x, y, z)
 
     logger.info("Printer calibration  finished")
         
