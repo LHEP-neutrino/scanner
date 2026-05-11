@@ -51,6 +51,20 @@ def run_pt_scan(config_file, x_position, y_position, z_position):
     # Run the point scan with the provided config file and coordinates
     cl.run_point_scan(config_file, x=x_position, y=y_position, z=z_position) 
 
+@cli.command()
+@click.option('--config-file', '-c', help='Path to a configuration file.')
+def printer_calib(config_file):
+    """
+        Go to the specified position (X, Y [, Z]).
+
+        Usage: scanctrl printer-calib --config-file CONFIG_FILE
+    """
+    # Check the provided argument
+    config_file = os.path.normpath(config_file) 
+    
+    # Run the point scan with the provided config file and coordinates
+    cl.printer_calib(config_file)
+
 
 #-----------------------
 # Hidden debug commands (not shown in help)

@@ -347,6 +347,62 @@ def run_scanner(config_file : str):
             with open(summary_path, 'w') as f:
                 json.dump(scanner_summary_json, f)
 
+def printer_calib(config_file):
+
+    logger.info(f"Running printer calibration script with config: {config_file}")
+        
+    # Load configuration
+    config = _load_config(config_file)
+
+    with PrinterCtrl(config = config["printer"]) as printerctrl:
+        parsed_coords = []
+        while True:
+            coords = click.prompt('\nPlease enter a list of 2D coordinates (e.g., [(x1,y1), (x2,y2)]): ', type=str)
+            
+            if coords.strip() == "":
+                click.echo("The list of coordinates cannot be empty. Please try again.")
+                continue
+                
+            try:
+                # Safely evaluate the input string into a Python list/tuple structure
+                import ast
+                parsed_coords = ast.literal_eval(coords)
+                
+                # Check if the result is a list
+                if not isinstance(parsed_coords, list):
+                    click.echo("Input must be a list. Please try again")
+                    continue
+                    
+                # Validate each item is a tuple of exactly 2 numeric values
+                for i, coord in enumerate(parsed_coords):
+                    if not isinstance(coord, (tuple, list)):
+                        raise ValueError(f"Coordinates at index {i} is not a tuple or list.")
+                    if len(coord) != 2:
+                        raise ValueError(f"Coordinates tuple at index {i} has {len(coord)} coordinates, expected 2.")
+                    if not all(isinstance(pos, (int, float)) for pos in coord):
+                        raise ValueError(f"Coordinates tuple at index {i} contains non-numeric values.")
+                        
+                # If we reach here, the format is correct
+                break
+                
+            except (SyntaxError, ValueError, NameError) as e:
+                click.echo(f"Invalid format: {e}. Please try again using the format [(x1,y1,z1), (x2,y2,z2), ...].")
+                continue
+
+        # Get the z coordinate from the config file
+        z = config["printer"].get("init_pos_LT")[2]        
+
+        for x,y in parsed_coords:
+            while not click.confirm(f"\nCan it move to the next position ({x}, {y})?"):
+                logger.warning("Waiting...")
+                time.sleep(3)
+                
+            printerctrl.go_to(x, y, z)
+
+
+
+
+
 
 # def run_point_scan(config_file : str, x : int, y : int, z : int, scan_comment: str = None):
 #     """
