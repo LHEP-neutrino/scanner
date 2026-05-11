@@ -408,25 +408,25 @@ def printer_calib(config_file):
 
         
         while click.confirm(f"\nDo you want to add a coordinates?"):
-            coords = click.prompt('\nPlease enter a tuple of 2D coordinates (e.g. (x1,y1)): ', type=str)
+            coord = click.prompt('\nPlease enter a tuple of 2D coordinates (e.g. (x1,y1)): ', type=str)
             
-            if coords.strip() == "":
+            if coord.strip() == "":
                 click.echo("The coordinates cannot be empty. Please try again.")
                 continue
                 
             try:
                 # Safely evaluate the input string into a Python list/tuple structure
                 import ast
-                parsed_coord = ast.literal_eval(coords)
+                parsed_coord = ast.literal_eval(coord)
                 
                 # Validate each item is a tuple of exactly 2 numeric values
                 if not isinstance(parsed_coord, (tuple, list)):
                     click.echo(f"Coordinates are not a tuple or list. Please try again")
                     continue
-                if len(coord) != 2:
-                    click.echo(f"{len(coord)} coordinates were provided, expected 2. PLease try again")
+                if len(parsed_coord) != 2:
+                    click.echo(f"{len(parsed_coord)} coordinates were provided, expected 2. PLease try again")
                     continue
-                if not all(isinstance(pos, (int, float)) for pos in coord):
+                if not all(isinstance(pos, (int, float)) for pos in parsed_coord):
                     click.echo(f"Coordinates contain non-numeric values. Please try again")
                         
                 # If we reach here, the format is correct
@@ -435,7 +435,7 @@ def printer_calib(config_file):
                 click.echo(f"Invalid format: {e}. Please try again using the format e.g. (x1,y1).")
                 continue
 
-            x, y = parsed_coords
+            x, y = parsed_coord
             printerctrl.go_to(x, y, z)
 
     logger.info("Printer calibration  finished")
