@@ -9,6 +9,8 @@ X_LIM = [40, 360]
 Y_LIM = [60, 360]
 Z_LIM = [19, -1]
 
+DEFAULT = [350,350,41]
+
 class PrinterCtrl:
     """
     Controller for the 3D printer used in the scanning setup.
@@ -22,7 +24,7 @@ class PrinterCtrl:
         """
         Initialize the printer connection and perform homing.
         """
-        self.init_x, self.init_y, self.init_z = config["init_pos_LT"]  # Initial position for the LT (X, Y, Z)
+        self.init_x, self.init_y, self.init_z = DEFAULT  # Initial position for the LT (X, Y, Z)
         self.current_x, self.current_y, self.current_z = -1, -1, -1
         
         self.ports: Optional[serial.Serial] = None
@@ -83,7 +85,7 @@ class PrinterCtrl:
                 - ensure port is closed.
         """
         logger.info("Exiting PrinterCtrl: Moving to safe position and closing connection.")
-        self.go_to(350, 350, 20)
+        self.go_to(*DEFAULT)
         self._close()
 
     #-----------------------

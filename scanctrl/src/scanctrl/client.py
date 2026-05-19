@@ -336,7 +336,7 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCt
     return scan_pt_info
 
 
-def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SupplrCtrl, scan_config : dict, pulser_config : dict) -> dict:
+def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config : dict, pulser_config : dict) -> dict:
     """
     Perform a full scan.
 
