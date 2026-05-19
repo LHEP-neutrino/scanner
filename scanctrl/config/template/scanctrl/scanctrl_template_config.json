@@ -11,10 +11,20 @@
     "scan": {
         "data_folder": "/mnt/storage/data/scanner",
         "scan_params": {
-            "start_pos": [360, 360],
-            "end_pos": [40, 60],
-            "N_steps": [20, 20],
-            "z_scan_height": 20
+            "start_pos": [0, 0],
+            "end_pos": [296, 461],
+            "N_steps": [2, 5],
+            "z_scan_height": 30,
+            "coord_transform": {
+                "IN": {
+                    "LT_coords": [[0, 46], [296, 346]],
+                    "printer_coords": [[45, 60], [343, 360]]
+                },
+                "OUT": {
+                    "LT_coords": [[0, 194], [296, 461]],
+                    "printer_coords": [[45, 60], [343, 328]]
+                }
+            }   
         }
     },
     "pulser": {

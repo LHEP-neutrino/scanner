@@ -98,7 +98,49 @@ def _load_config(config_file : str) -> dict:
 
     return config
 
-def _compute_scan_coordinates(scan_params : dict) -> np.ndarray:
+def _compute_printer_coordinates(scan_params : dict) -> np.ndarray:
+
+    """
+    old:
+
+        "scan": {
+            "data_folder": "/mnt/storage/data/scanner",
+            "scan_params": {
+                "start_pos": [360, 360],
+                "end_pos": [40, 60],
+                "N_steps": [20, 20],
+                "z_scan_height": 20
+            }
+
+    new:
+
+        "scan": {
+            "data_folder": "/mnt/storage/data/scanner",
+            "scan_params": {
+                "start_pos": [0, 0],
+                "end_pos": [296, 461],
+                "N_steps": [2, 5],
+                "z_scan_height": 30
+                "coord_transform": {
+                    "IN": {
+                        "LT_coords": [[0, 46], [296, 346]],
+                        "printer_coords": [[45, 60], [343, 360]],
+                    }
+                    "OUT": {
+                        "LT_coords": [[0, 194], [296, 461]],
+                        "printer_coords": [[45, 60], [343, 328]],
+                    }
+                    
+            }
+    """
+    
+    
+
+
+
+
+
+
     """
     Compute the scan coordinates based on the scan parameters.
 
@@ -126,8 +168,81 @@ def _compute_scan_coordinates(scan_params : dict) -> np.ndarray:
     scan_coordinates = np.array(list(product(coord_y, coord_x))).astype(int)
     scan_coordinates = np.flip(scan_coordinates, axis=1) # Flip the coordinates to get (x,y) instead of (y,x)
 
-    logger.debug(f"Scan coordinates: {scan_coordinates}")
-    return scan_coordinates
+    logger.debug(f"Scan coordinates (LT coords): {scan_coordinates}")
+
+    # Convert to printer coord.
+
+    """
+    Transforms a list of (x, y) tuples with dawer position tagging rules.
+    
+    Rules:
+    1. y < 300 -> pos_0
+    2. y > 350 -> pos_1
+    3. 300 <= y <= 350 
+       - If the dataset contains ONLY pos_1 points (no pos_0 points exist in the whole set), tag as pos_1.
+       - If the dataset contains ANY pos_0 points, tag as pos_0.
+    """
+    
+    has_pos_0 = False
+    y_lim = scan_params["coord_transform"]["IN"]["LT_coords"][1][1] # Get the max y coordinate in the LT coords to define the limits for the drawer position tagging
+    y_lim_OUT = scan_params["coord_transform"]["OUT"]["LT_coords"][0][1]
+    # printer_coordinates = np.full((scan_coordinates.shape[0], scan_coordinates.shape[1] + 1), -1, dtype=int)
+    printer_coordinates_IN = []
+    printer_coordinates_OUT = []
+
+    # Compute the transformation parameters for the coordinate transformation from LT to printer coordinates
+    # lt_coords_in = np.array(scan_params["coord_transform"]["IN"]["LT_coords"])
+    # printer_coords_in = np.array(scan_params["coord_transform"]["IN"]["printer_coords"])
+    # scale_x_in = (printer_coords_in[1][0] - printer_coords_in[0][0]) / (lt_coords_in[1][0] - lt_coords_in[0][0])
+    # scale_y_in = (printer_coords_in[1][1] - printer_coords_in[0][1]) / (lt_coords_in[1][1] - lt_coords_in[0][1])
+    # offset_x_in = printer_coords_in[0][0] - lt_coords_in[0][0] * scale_x_in
+    # offset_x = printer_coords_in[0][0] - lt_coords_in[0][0]
+    # offset_y_in = printer_coords_in[0][1] - lt_coords_in[0][1] * scale_y_in
+    # logger.debug(f"Coordinate transformation parameters, IN: scale_x={scale_x_in}, scale_y={scale_y_in}, offset_x={offset_x_in}, offset_y={offset_y_in}")
+
+    # lt_coords_out = np.array(scan_params["coord_transform"]["OUT"]["LT_coords"])
+    # printer_coords_out = np.array(scan_params["coord_transform"]["OUT"]["printer_coords"])
+    # scale_x_out = (printer_coords_out[1][0] - printer_coords_out[0][0]) / (lt_coords_out[1][0] - lt_coords_out[0][0])
+    # scale_y_out = (printer_coords_out[1][1] - printer_coords_out[0][1]) / (lt_coords_out[1][1] - lt_coords_out[0][1])
+    # offset_x_out = printer_coords_out[0][0] - lt_coords_out[0][0] * scale_x_out
+    # offset_y_out = printer_coords_out[0][1] - lt_coords_out[0][1] * scale_y_out
+    # offset_y_out = printer_coords_out[0][1] - lt_coords_out[0][1] * scale_y_out
+    # logger.debug(f"Coordinate transformation parameters, OUT: scale_x={scale_x_out}, scale_y={scale_y_out}, offset_x={offset_x_out}, offset_y={offset_y_out}")
+
+    lt_coords_in = np.array(scan_params["coord_transform"]["IN"]["LT_coords"])
+    printer_coords_in = np.array(scan_params["coord_transform"]["IN"]["printer_coords"])
+    lt_coords_out = np.array(scan_params["coord_transform"]["OUT"]["LT_coords"])
+    printer_coords_out = np.array(scan_params["coord_transform"]["OUT"]["printer_coords"])
+
+    offset_x = printer_coords_in[0][0] - lt_coords_in[0][0]
+    offset_y_in = printer_coords_in[0][1] - lt_coords_in[0][1]
+    offset_y_out = printer_coords_out[0][1] - lt_coords_out[0][1]
+
+    logger.debug(f'Scaling parameters: offset_x: {offset_x}, offset_y_in: {offset_y_in}, offset_y_out: {offset_y_out}')
+
+    for x, y in scan_coordinates:
+        if y <= y_lim:
+            if y < y_lim_OUT:
+                has_pos_0 = True
+
+            printer_coordinates_IN.append([x + offset_x, y + offset_y_in]) # Drawer position 0
+
+        elif y > y_lim:
+            printer_coordinates_OUT.append([x + offset_x, y + offset_y_out, 1]) # Drawer position 1
+
+    
+    
+    if has_pos_0 == False:
+        logger.debug("No points in position 'IN' found in the dataset, tagging all points as 'OUT'.")
+        printer_coordinates_OUT = printer_coordinates_IN +printer_coordinates_OUT
+        printer_coordinates_IN = []
+            
+    printer_coordinates_IN = np.array(printer_coordinates_IN, dtype=int)
+    printer_coordinates_OUT = np.array(printer_coordinates_OUT, dtype=int)
+            
+    logger.debug(f"Scan coordinates (printer coords), IN: {printer_coordinates_IN}, OUT: {printer_coordinates_OUT}")  
+
+    return printer_coordinates_IN, printer_coordinates_OUT, scan_coordinates
 
 def _print_progress_bar(iteration : int, total : int, prefix : str = '', suffix : str = '', length : int = 20, fill : str = '='):
     """
@@ -211,21 +326,23 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCt
     
     logger.debug("Scan point finished.")
 
-    scan_pt_info = {"x": int(x),
-                    "y": int(y),
+    scan_pt_info = {"x_printer": int(x),
+                    "y_printer": int(y),
                     "data_file" : _find_data_file(data_folder),
-                    "timestamp": time.strftime("%Y%m%d_%H%M%S")
+                    "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+                    "temperature": -1, # Placeholder for temperature, to be implemented when the temperature sensor is integrated
                     }
 
     return scan_pt_info
 
 
-def _full_scan(printerctrl : PrinterCtrl, scan_config : dict, pulser_config : dict) -> dict:
+def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SupplrCtrl, scan_config : dict, pulser_config : dict) -> dict:
     """
     Perform a full scan.
 
     Args:
         printerctrl (PrinterCtrl): The printer controller instance.
+        supplrctrl (SupplrCtrl): The supplier controller instance.
         scan_config (dict): The scan configuration.
         pulser_config (dict): The pulser configuration.
 
@@ -237,10 +354,10 @@ def _full_scan(printerctrl : PrinterCtrl, scan_config : dict, pulser_config : di
     scan_params = scan_config["scan_params"]
     data_folder = scan_config["data_folder"]
 
-    scan_coordinates = _compute_scan_coordinates(scan_params)
+    printer_coordinates_IN, printer_coordinates_OUT, scan_coordinates = _compute_printer_coordinates(scan_params)
 
     scan_summary_json = {}
-    total_scan_points = len(scan_coordinates)
+    total_scan_points = len(printer_coordinates_IN) + len(printer_coordinates_OUT)
 
     scan_summary_json = {"N_scan_points": total_scan_points}
 
@@ -249,11 +366,11 @@ def _full_scan(printerctrl : PrinterCtrl, scan_config : dict, pulser_config : di
     with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
         with DAQCtrl() as daqctrl:
 
-            for idx, (x, y) in enumerate(scan_coordinates):
+            for idx, (x, y) in enumerate(printer_coordinates_IN):
                 _print_progress_bar(iteration=idx, 
-                                    total=total_scan_points, 
+                                    total=len(printer_coordinates_IN), 
                                     prefix="Scanning in progress:", 
-                                    suffix=f", Currently: X={x:.2f}, Y={y:.2f}", 
+                                    suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: IN", 
                                     length=30
                                     )
                 
@@ -262,6 +379,33 @@ def _full_scan(printerctrl : PrinterCtrl, scan_config : dict, pulser_config : di
 
                 # Register scan info
                 scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
+                scan_summary_json[f"scan_pt_{idx}"]["drawer_position"] = printerctrl.drawer_position
+                scan_summary_json[f"scan_pt_{idx}"]["LT_x"] = scan_coordinates[idx][0]
+                scan_summary_json[f"scan_pt_{idx}"]["LT_y"] = scan_coordinates[idx][1]
+
+            supplrctrl.set_default_bias() # Set the bias voltage to the default value before the door is opened
+            while not click.confirm("\nHalf scan finished. SiPMs biased down. Please change the drawer position to 'OUT' to continue."):
+                click.echo("Waiting for the user to change the drawer position...")
+                time.sleep(3)
+
+            printerctrl.drawer_position = 1 # Set the drawer position to 1 (OUT) after confirming with the user
+
+            for idx, (x, y) in enumerate(printer_coordinates_OUT):
+                _print_progress_bar(iteration=idx, 
+                                    total=len(printer_coordinates_OUT), 
+                                    prefix="Scanning in progress:", 
+                                    suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT", 
+                                    length=30
+                                    )
+                
+                # Perform the scan at the current point
+                scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
+
+                # Register scan info
+                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"] = scan_pt_info
+                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["drawer_position"] = printerctrl.drawer_position
+                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_x"] = scan_coordinates[idx+len(printer_coordinates_IN)][0]
+                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_y"] = scan_coordinates[idx+len(printer_coordinates_IN)][1]
 
             _print_progress_bar(iteration=total_scan_points, 
                                 total=total_scan_points, 
@@ -291,9 +435,16 @@ def run_scanner(config_file : str):
                 
         # Initialize printer controller with config
         with PrinterCtrl(config = config["printer"]) as printerctrl:
-        
+
+            # Check with user that the LT is in the initial position
+            while not click.confirm("\nIs the Drawer in the position 'IN'?"):
+                click.echo("Please move the drawer to the 'IN' position to continue.")
+                time.sleep(3)
+
+            printerctrl.drawer_position = 0 # Set the drawer position to 0 (IN) after confirming with the user
+
+
             # Check with user that the VGA is set correctly
-            
             while not click.confirm("\nIs the VGA gain set correctly (12dB)?"):
                 logger.warning("VGA gain is not set correctly. Please set it to 12dB to continue.")
                 click.echo("Please go to http://130.92.128.188/ in your favorite browser and set the VGA gain to 12dB to continue.")
@@ -309,7 +460,7 @@ def run_scanner(config_file : str):
                     break
 
             # Ask the user if there is a scan comment
-            scan_comment = click.prompt('\nPlease enter a comment for the scan if needed [Press Enter to continue]', type=str, default="")
+            scan_comment = click.prompt('\nPlease enter a comment for the scan if needed [Press Enter to continue]', type=str)
             logger.debug(f"Prompted user for scan comment: {scan_comment}")
 
             # Define scan name and summary json
@@ -336,7 +487,7 @@ def run_scanner(config_file : str):
                 
     
                 # Perform the scan
-                scan_summary_json = _full_scan(printerctrl = printerctrl, scan_config = config["scan"], pulser_config = config["pulser"])
+                scan_summary_json = _full_scan(printerctrl = printerctrl, supplrctrl = supplrctrl, scan_config = config["scan"], pulser_config = config["pulser"])
 
             # Add scan summary info to the json
             scanner_summary_json["scan_summary"] = scan_summary_json
@@ -562,9 +713,9 @@ def debug_scan_coordinates(config_file : str):
 
     # Compute scan coordinates
     scan_params = config["scan"]["scan_params"]
-    scan_coordinates = _compute_scan_coordinates(scan_params)
+    printer_coordinates = _compute_printer_coordinates(scan_params)
 
-    logger.info(f"Computed {len(scan_coordinates)} scan coordinates")
+    logger.info(f"Computed {len(printer_coordinates)} printer coordinates")
 
 def debug_pulserctrl(config_file : str):
     """

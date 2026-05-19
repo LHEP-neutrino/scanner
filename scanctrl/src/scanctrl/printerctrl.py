@@ -57,6 +57,9 @@ class PrinterCtrl:
             # Go to initial position
             logger.info(f"Moving to initial position.")
             self.go_to(self.init_x, self.init_y, self.init_z)
+
+            # Position 0 = IN, Position 1 = OUT, -1 = UNKNOWN
+            self.drawer_position = -1  
             
             logger.info("Initialization complete. Printer ready.")
 
