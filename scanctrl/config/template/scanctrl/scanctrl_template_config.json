@@ -17,12 +17,12 @@
             "z_scan_height": 30,
             "coord_transform": {
                 "IN": {
-                    "LT_coords": [[0, 46], [296, 346]],
-                    "printer_coords": [[45, 60], [343, 360]]
+                    "LT_coords": [[0, 5], [296, 305]],
+                    "printer_coords": [[47, 60], [344, 360]]
                 },
                 "OUT": {
-                    "LT_coords": [[0, 194], [296, 461]],
-                    "printer_coords": [[45, 60], [343, 328]]
+                    "LT_coords": [[0, 161], [296, 461]],
+                    "printer_coords": [[47, 60], [344, 354]]
                 }
             }   
         }

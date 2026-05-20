@@ -228,15 +228,18 @@ def _compute_printer_coordinates(scan_params : dict) -> np.ndarray:
             printer_coordinates_IN.append([x + offset_x, y + offset_y_in]) # Drawer position 0
 
         elif y > y_lim:
-            printer_coordinates_OUT.append([x + offset_x, y + offset_y_out, 1]) # Drawer position 1
+            printer_coordinates_OUT.append([x + offset_x, y + offset_y_out]) # Drawer position 1
 
     
     
     if has_pos_0 == False:
         logger.debug("No points in position 'IN' found in the dataset, tagging all points as 'OUT'.")
-        printer_coordinates_OUT = printer_coordinates_IN +printer_coordinates_OUT
+        printer_coordinates_OUT = printer_coordinates_IN + printer_coordinates_OUT
         printer_coordinates_IN = []
-            
+
+    logger.debug(f"Number of points tagged as 'IN': {len(printer_coordinates_IN)}, Number of points tagged as 'OUT': {len(printer_coordinates_OUT)}")
+    logger.debug(f"Scan coordinates tagged with drawer position: {printer_coordinates_IN + printer_coordinates_OUT}") 
+
     printer_coordinates_IN = np.array(printer_coordinates_IN, dtype=int)
     printer_coordinates_OUT = np.array(printer_coordinates_OUT, dtype=int)
             
@@ -432,14 +435,15 @@ def run_scanner(config_file : str):
         
         # Load configuration
         config = _load_config(config_file)
+
+        # Check with user that the LT is in the initial position 'IN' to avoid collision between 
+        #front panel and printer head during the homing command
+        while not click.confirm("\nIs the Drawer in the position 'IN'?"):
+            click.echo("Please move the drawer to the 'IN' position to continue.")
+            time.sleep(3)
                 
         # Initialize printer controller with config
         with PrinterCtrl(config = config["printer"]) as printerctrl:
-
-            # Check with user that the LT is in the initial position
-            while not click.confirm("\nIs the Drawer in the position 'IN'?"):
-                click.echo("Please move the drawer to the 'IN' position to continue.")
-                time.sleep(3)
 
             printerctrl.drawer_position = 0 # Set the drawer position to 0 (IN) after confirming with the user
 
@@ -713,9 +717,9 @@ def debug_scan_coordinates(config_file : str):
 
     # Compute scan coordinates
     scan_params = config["scan"]["scan_params"]
-    printer_coordinates = _compute_printer_coordinates(scan_params)
+    _, _, scan_coords = _compute_printer_coordinates(scan_params)
 
-    logger.info(f"Computed {len(printer_coordinates)} printer coordinates")
+    logger.info(f"Computed {len(scan_coords)} scan coordinates")
 
 def debug_pulserctrl(config_file : str):
     """
