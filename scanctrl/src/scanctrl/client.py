@@ -341,7 +341,7 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
                         _print_progress_bar(iteration=idx, 
                                             total=total_scan_points, 
                                             prefix="Scanning in progress:", 
-                                            suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: IN", 
+                                            suffix=f", Currently: X={scan_coordinates[idx][0]:.2f}, Y={scan_coordinates[idx][1]:.2f}, Drawer: IN", 
                                             length=30
                                             )
                         
@@ -361,7 +361,7 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
                     _print_progress_bar(iteration=len(printer_coordinates_IN), 
                                     total=total_scan_points, 
                                     prefix="Scanning in progress:", 
-                                    suffix=f", Currently: Drawer movement in progress...", 
+                                    suffix=f", Currently: Drawer movement in progress...\n", 
                                     length=30
                                     )
                     
@@ -385,7 +385,7 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
                         _print_progress_bar(iteration=idx+len(printer_coordinates_IN), 
                                             total=total_scan_points, 
                                             prefix="Scanning in progress:", 
-                                            suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT", 
+                                            suffix=f", Currently: X={scan_coordinates[idx+len(printer_coordinates_IN)][0]:.2f}, Y={scan_coordinates[idx+len(printer_coordinates_IN)][1]:.2f}, Drawer: OUT", 
                                             length=30
                                             )
                         
