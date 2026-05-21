@@ -75,7 +75,7 @@ class NTCReader:
                 - Move printer head close to reference position (to avoid wrong initialization in next scan)
                 - ensure port is closed.
         """
-        logger.info("Exiting NTCRReader closing connection.")
+        logger.info("Exiting NTCRReader, closing connection.")
         self._close()
 
     #-----------------------
@@ -102,6 +102,7 @@ class NTCReader:
         """
         try:
             line = self.ports.readline().decode('utf-8').strip()
+            logger.debug(f"Raw line read from NTCReader: '{line}'")
             if line:
                 cleaned_line = line.replace('\x00', '').strip()
                 if cleaned_line:

@@ -320,7 +320,7 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
     scan_summary_json = {"N_scan_points": total_scan_points}
 
     z  = int(scan_params["z_scan_height"])
-    
+
     with NTCReader() as ntcreader:
         with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
             with DAQCtrl() as daqctrl:
@@ -755,7 +755,8 @@ def debug_ntcreader(config_file : str):
 
     with NTCReader() as ntcreader:
         logger.info("NTC reader initialized successfully.")
-        temperature = ntcreader.read_temperature()
-        logger.info(f"Read temperature: {temperature} °C")
+        while click.confirm("\nDo you want to read the temperature?"):
+            temperature = ntcreader.read_temperature()
+            logger.info(f"Read temperature: {temperature} °C")
 
     logger.info("Done!")
