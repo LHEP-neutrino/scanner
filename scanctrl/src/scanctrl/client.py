@@ -325,11 +325,21 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
         with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
             with DAQCtrl() as daqctrl:
 
+                time_per_point = pulser_config["duration"] + 10 # Time per point in seconds, including some overhead for moving the printer head, starting/stopping the DAQ and pulser
+
+                if len(printer_coordinates_IN) != 0 and len(printer_coordinates_OUT) != 0:
+                    logger.info(f"Starting scan with {total_scan_points}. Please come back in about {len(printer_coordinates_IN) * time_per_point/60} min to move the drawer.")
+                elif len(printer_coordinates_IN) != 0 and len(printer_coordinates_OUT) == 0:
+                    logger.info(f"Starting scan with {total_scan_points}. The scan will be finished in about {len(printer_coordinates_IN) * time_per_point/60} min.")    
+                elif len(printer_coordinates_IN) == 0 and len(printer_coordinates_OUT) != 0:
+                    logger.info(f"Starting scan with {total_scan_points}. The scan will be done in about {len(printer_coordinates_OUT) * time_per_point/60} min.")
+                
+
                 if len(printer_coordinates_IN) > 0: # Only scan in the 'IN' position if there are points tagged as 'IN'
 
                     for idx, (x, y) in enumerate(printer_coordinates_IN):
                         _print_progress_bar(iteration=idx, 
-                                            total=len(printer_coordinates_IN), 
+                                            total=total_scan_points, 
                                             prefix="Scanning in progress:", 
                                             suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: IN", 
                                             length=30
@@ -344,12 +354,13 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
                         scan_summary_json[f"scan_pt_{idx}"]["LT_x"] = int(scan_coordinates[idx][0])
                         scan_summary_json[f"scan_pt_{idx}"]["LT_y"] = int(scan_coordinates[idx][1])
 
-                # Drawer movement
 
-                if len(printer_coordinates_OUT) > 0: # Only ask to move the drawer if there are points to scan in the OUT position
+                # Drawer movement
+                if len(printer_coordinates_OUT) > 0 and len(printer_coordinates_IN) > 0: 
+                    logger.info("First part of the scan finished. Setting SiPMs to default biased...")
 
                     supplrctrl.set_default_bias() # Set the bias voltage to the default value before the door is opened
-                    logger.info("\n Scan in 'IN' configuration finished. SiPMs biased down. Please change the drawer to the 'OUT' position to continue.")
+                    logger.info("SiPMs biased down. Please change the drawer to the 'OUT' position to continue.")
                     time.sleep(3)
                     while not click.confirm("Is the drawer in the position 'OUT' and the door closed again?"):
                         click.echo("Waiting for the user to change the drawer position...")
@@ -357,12 +368,14 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
 
                     printerctrl.drawer_position = 1 # Set the drawer position to 1 (OUT) after confirming with the user
 
+                    logger.info(f"It remains {len(printer_coordinates_OUT)} scan points. The scan will be finished in about {len(printer_coordinates_OUT) * time_per_point/60} min.")
+
                     supplrctrl.set_bias_voltage_channels()
 
-
+                if len(printer_coordinates_OUT) > 0:
                     for idx, (x, y) in enumerate(printer_coordinates_OUT):
-                        _print_progress_bar(iteration=idx, 
-                                            total=len(printer_coordinates_OUT), 
+                        _print_progress_bar(iteration=idx+len(printer_coordinates_IN), 
+                                            total=total_scan_points, 
                                             prefix="Scanning in progress:", 
                                             suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT", 
                                             length=30
