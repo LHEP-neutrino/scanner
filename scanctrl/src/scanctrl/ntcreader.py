@@ -54,8 +54,12 @@ class NTCReader:
                 logger.error(f"Failed to open serial port: {self.port}")
                 raise ConnectionError("Failed to open serial port.")
             
-            logger.info("Initialization complete. NTCReader ready.")
-
+            while True:
+                T = self.read_temperature()  # Try to read a temperature to confirm the connection is working
+                if isinstance(T, float):
+                    logger.info(f"Initialization complete. NTCReader ready.Successfully read initial temperature: {T:.2f} °C")
+                    break
+            
         except serial.SerialException as e:
             logger.error(f"Serial communication error during initialization: {e}")
             raise
@@ -103,6 +107,7 @@ class NTCReader:
         try:
             line = self.ports.readline().decode('utf-8').strip()
             logger.debug(f"Raw line read from NTCReader: '{line}'")
+            
             if line:
                 cleaned_line = line.replace('\x00', '').strip()
                 if cleaned_line:
