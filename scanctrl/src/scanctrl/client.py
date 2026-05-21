@@ -101,55 +101,35 @@ def _load_config(config_file : str) -> dict:
 def _compute_printer_coordinates(scan_params : dict) -> np.ndarray:
 
     """
-    old:
-
-        "scan": {
-            "data_folder": "/mnt/storage/data/scanner",
-            "scan_params": {
-                "start_pos": [360, 360],
-                "end_pos": [40, 60],
-                "N_steps": [20, 20],
-                "z_scan_height": 20
-            }
-
-    new:
-
-        "scan": {
-            "data_folder": "/mnt/storage/data/scanner",
-            "scan_params": {
-                "start_pos": [0, 0],
-                "end_pos": [296, 461],
-                "N_steps": [2, 5],
-                "z_scan_height": 30
-                "coord_transform": {
-                    "IN": {
-                        "LT_coords": [[0, 46], [296, 346]],
-                        "printer_coords": [[45, 60], [343, 360]],
-                    }
-                    "OUT": {
-                        "LT_coords": [[0, 194], [296, 461]],
-                        "printer_coords": [[45, 60], [343, 328]],
-                    }
-                    
-            }
-    """
+    Compute the printer coordinates for the scan based on the scan parameters (LT coordinates)
+    and the coordinate transformation defined in the config file.
     
+    The transformation to convert LT coordinates to printer coordinates follows these rules:
+
+    - The limits used to assign the LT corrdinate to the drawer positions are defined by
+      the max y coordinate of the 'IN' position in the LT coordinates (y_lim):
+        1. y < y_lim -> pos_0 aka 'IN'
+        2. y > y_lim -> pos_1 aka 'OUT'
     
-
-
-
-
-
-
-    """
-    Compute the scan coordinates based on the scan parameters.
+    - Finally, there is an overlap between the two positions in the LT coordinates so to avoid
+      an unecessary drawer movement we check that there is at least a coordinate in the 'IN' 
+      region that don't overlap with the 'OUT" one.
+       
+      This is checked with the boolean 'has_pos_0'.
+      If 'has_pos_0' is False, it means that all the coordinates in the 'IN' region are also in
+      the 'OUT' region, so we tag all the coordinates as 'OUT' to avoid an unecessary drawer movement.
 
     Args:
-        scan_params (dict): The scan parameters containing start_pos, end_pos, and N_steps.
-
+        scan_params (dict): The scan parameters containing the LT coordinates and the coordinate transformation.
+    
     Returns:
-        scan_coordinates (np.ndarray): An array of scan coordinates ([[X1, Y1], [X2, Y2], ...]).
+        printer_coordinates_IN (list): A list of printer coordinates for points tagged as 'IN'.
+        printer_coordinates_OUT (list): A list of printer coordinates for points tagged as 'OUT'.
+        scan_coordinates (list): An array of the scan coordinates in LT coordinates.
+
+
     """
+    
     # From the config file define the scan positions
     start_pos = np.array(scan_params["start_pos"], dtype=int)
     end_pos = np.array(scan_params["end_pos"], dtype=int)
@@ -166,54 +146,32 @@ def _compute_printer_coordinates(scan_params : dict) -> np.ndarray:
     # Get the Cartesian product of the coordinates to get the scan positions
     # Note that we want to iterate first over the x coordinates (fast axis), so we have to flip them after the product
     scan_coordinates = np.array(list(product(coord_y, coord_x))).astype(int)
-    scan_coordinates = np.flip(scan_coordinates, axis=1) # Flip the coordinates to get (x,y) instead of (y,x)
+    scan_coordinates = np.flip(scan_coordinates, axis=1).tolist() # Flip the coordinates to get (x,y) instead of (y,x) and tranform it into a list
 
     logger.debug(f"Scan coordinates (LT coords): {scan_coordinates}")
 
+
     # Convert to printer coord.
 
-    """
-    Transforms a list of (x, y) tuples with dawer position tagging rules.
-    
-    Rules:
-    1. y < 300 -> pos_0
-    2. y > 350 -> pos_1
-    3. 300 <= y <= 350 
-       - If the dataset contains ONLY pos_1 points (no pos_0 points exist in the whole set), tag as pos_1.
-       - If the dataset contains ANY pos_0 points, tag as pos_0.
-    """
-    
-    has_pos_0 = False
-    y_lim = scan_params["coord_transform"]["IN"]["LT_coords"][1][1] # Get the max y coordinate in the LT coords to define the limits for the drawer position tagging
+    # Get the max y coordinate in the LT coords to define the limits for the drawer position tagging
+    y_lim = scan_params["coord_transform"]["IN"]["LT_coords"][1][1] 
     y_lim_OUT = scan_params["coord_transform"]["OUT"]["LT_coords"][0][1]
-    # printer_coordinates = np.full((scan_coordinates.shape[0], scan_coordinates.shape[1] + 1), -1, dtype=int)
+
+    # Initialize the output lists for the printer coordinates of the 'IN' and 'OUT' positions
     printer_coordinates_IN = []
     printer_coordinates_OUT = []
 
-    # Compute the transformation parameters for the coordinate transformation from LT to printer coordinates
-    # lt_coords_in = np.array(scan_params["coord_transform"]["IN"]["LT_coords"])
-    # printer_coords_in = np.array(scan_params["coord_transform"]["IN"]["printer_coords"])
-    # scale_x_in = (printer_coords_in[1][0] - printer_coords_in[0][0]) / (lt_coords_in[1][0] - lt_coords_in[0][0])
-    # scale_y_in = (printer_coords_in[1][1] - printer_coords_in[0][1]) / (lt_coords_in[1][1] - lt_coords_in[0][1])
-    # offset_x_in = printer_coords_in[0][0] - lt_coords_in[0][0] * scale_x_in
-    # offset_x = printer_coords_in[0][0] - lt_coords_in[0][0]
-    # offset_y_in = printer_coords_in[0][1] - lt_coords_in[0][1] * scale_y_in
-    # logger.debug(f"Coordinate transformation parameters, IN: scale_x={scale_x_in}, scale_y={scale_y_in}, offset_x={offset_x_in}, offset_y={offset_y_in}")
+    # Initalize a boolean to check if there is at least a point in the 'IN' position that is not
+    #in the 'OUT' position to avoid an unecessary drawer movement
+    has_pos_0 = False
 
-    # lt_coords_out = np.array(scan_params["coord_transform"]["OUT"]["LT_coords"])
-    # printer_coords_out = np.array(scan_params["coord_transform"]["OUT"]["printer_coords"])
-    # scale_x_out = (printer_coords_out[1][0] - printer_coords_out[0][0]) / (lt_coords_out[1][0] - lt_coords_out[0][0])
-    # scale_y_out = (printer_coords_out[1][1] - printer_coords_out[0][1]) / (lt_coords_out[1][1] - lt_coords_out[0][1])
-    # offset_x_out = printer_coords_out[0][0] - lt_coords_out[0][0] * scale_x_out
-    # offset_y_out = printer_coords_out[0][1] - lt_coords_out[0][1] * scale_y_out
-    # offset_y_out = printer_coords_out[0][1] - lt_coords_out[0][1] * scale_y_out
-    # logger.debug(f"Coordinate transformation parameters, OUT: scale_x={scale_x_out}, scale_y={scale_y_out}, offset_x={offset_x_out}, offset_y={offset_y_out}")
+    # Get the coordinate transformation parameters from the config file
+    lt_coords_in = scan_params["coord_transform"]["IN"]["LT_coords"]
+    printer_coords_in = scan_params["coord_transform"]["IN"]["printer_coords"]
+    lt_coords_out = scan_params["coord_transform"]["OUT"]["LT_coords"]
+    printer_coords_out = scan_params["coord_transform"]["OUT"]["printer_coords"]
 
-    lt_coords_in = np.array(scan_params["coord_transform"]["IN"]["LT_coords"])
-    printer_coords_in = np.array(scan_params["coord_transform"]["IN"]["printer_coords"])
-    lt_coords_out = np.array(scan_params["coord_transform"]["OUT"]["LT_coords"])
-    printer_coords_out = np.array(scan_params["coord_transform"]["OUT"]["printer_coords"])
-
+    # Compute the scaling parameters for the coordinate transformation
     offset_x = printer_coords_in[0][0] - lt_coords_in[0][0]
     offset_y_in = printer_coords_in[0][1] - lt_coords_in[0][1]
     offset_y_out = printer_coords_out[0][1] - lt_coords_out[0][1]
@@ -225,24 +183,20 @@ def _compute_printer_coordinates(scan_params : dict) -> np.ndarray:
             if y < y_lim_OUT:
                 has_pos_0 = True
 
-            printer_coordinates_IN.append([x + offset_x, y + offset_y_in]) # Drawer position 0
+            printer_coordinates_IN.append([int(x + offset_x), int(y + offset_y_in)]) # Drawer position 0
 
         elif y > y_lim:
-            printer_coordinates_OUT.append([x + offset_x, y + offset_y_out]) # Drawer position 1
+            printer_coordinates_OUT.append([int(x + offset_x), int(y + offset_y_out)]) # Drawer position 1
 
     
-    
+    # Check for unnecessary drawer movement
     if has_pos_0 == False:
         logger.debug("No points in position 'IN' found in the dataset, tagging all points as 'OUT'.")
         printer_coordinates_OUT = printer_coordinates_IN + printer_coordinates_OUT
         printer_coordinates_IN = []
 
-    logger.debug(f"Number of points tagged as 'IN': {len(printer_coordinates_IN)}, Number of points tagged as 'OUT': {len(printer_coordinates_OUT)}")
-    logger.debug(f"Scan coordinates tagged with drawer position: {printer_coordinates_IN + printer_coordinates_OUT}") 
 
-    printer_coordinates_IN = np.array(printer_coordinates_IN, dtype=int)
-    printer_coordinates_OUT = np.array(printer_coordinates_OUT, dtype=int)
-            
+    logger.debug(f"Number of points tagged as 'IN': {len(printer_coordinates_IN)}, Number of points tagged as 'OUT': {len(printer_coordinates_OUT)}")
     logger.debug(f"Scan coordinates (printer coords), IN: {printer_coordinates_IN}, OUT: {printer_coordinates_OUT}")  
 
     return printer_coordinates_IN, printer_coordinates_OUT, scan_coordinates
@@ -369,46 +323,57 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
     with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
         with DAQCtrl() as daqctrl:
 
-            for idx, (x, y) in enumerate(printer_coordinates_IN):
-                _print_progress_bar(iteration=idx, 
-                                    total=len(printer_coordinates_IN), 
-                                    prefix="Scanning in progress:", 
-                                    suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: IN", 
-                                    length=30
-                                    )
-                
-                # Perform the scan at the current point
-                scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
+            if len(printer_coordinates_IN) > 0: # Only scan in the 'IN' position if there are points tagged as 'IN'
 
-                # Register scan info
-                scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
-                scan_summary_json[f"scan_pt_{idx}"]["drawer_position"] = printerctrl.drawer_position
-                scan_summary_json[f"scan_pt_{idx}"]["LT_x"] = scan_coordinates[idx][0]
-                scan_summary_json[f"scan_pt_{idx}"]["LT_y"] = scan_coordinates[idx][1]
+                for idx, (x, y) in enumerate(printer_coordinates_IN):
+                    _print_progress_bar(iteration=idx, 
+                                        total=len(printer_coordinates_IN), 
+                                        prefix="Scanning in progress:", 
+                                        suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: IN", 
+                                        length=30
+                                        )
+                    
+                    # Perform the scan at the current point
+                    scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
 
-            supplrctrl.set_default_bias() # Set the bias voltage to the default value before the door is opened
-            while not click.confirm("\nHalf scan finished. SiPMs biased down. Please change the drawer position to 'OUT' to continue."):
-                click.echo("Waiting for the user to change the drawer position...")
+                    # Register scan info
+                    scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
+                    scan_summary_json[f"scan_pt_{idx}"]["drawer_position"] = printerctrl.drawer_position
+                    scan_summary_json[f"scan_pt_{idx}"]["LT_x"] = int(scan_coordinates[idx][0])
+                    scan_summary_json[f"scan_pt_{idx}"]["LT_y"] = int(scan_coordinates[idx][1])
+
+            # Drawer movement
+
+            if len(printer_coordinates_OUT) > 0: # Only ask to move the drawer if there are points to scan in the OUT position
+
+                supplrctrl.set_default_bias() # Set the bias voltage to the default value before the door is opened
+                logger.info("\n Scan in 'IN' configuration finished. SiPMs biased down. Please change the drawer to the 'OUT' position to continue.")
                 time.sleep(3)
+                while not click.confirm("Is the drawer in the position 'OUT' and the door closed again?"):
+                    click.echo("Waiting for the user to change the drawer position...")
+                    time.sleep(3)
 
-            printerctrl.drawer_position = 1 # Set the drawer position to 1 (OUT) after confirming with the user
+                printerctrl.drawer_position = 1 # Set the drawer position to 1 (OUT) after confirming with the user
 
-            for idx, (x, y) in enumerate(printer_coordinates_OUT):
-                _print_progress_bar(iteration=idx, 
-                                    total=len(printer_coordinates_OUT), 
-                                    prefix="Scanning in progress:", 
-                                    suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT", 
-                                    length=30
-                                    )
-                
-                # Perform the scan at the current point
-                scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
+                supplrctrl.set_bias_voltage_channels()
 
-                # Register scan info
-                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"] = scan_pt_info
-                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["drawer_position"] = printerctrl.drawer_position
-                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_x"] = scan_coordinates[idx+len(printer_coordinates_IN)][0]
-                scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_y"] = scan_coordinates[idx+len(printer_coordinates_IN)][1]
+
+                for idx, (x, y) in enumerate(printer_coordinates_OUT):
+                    _print_progress_bar(iteration=idx, 
+                                        total=len(printer_coordinates_OUT), 
+                                        prefix="Scanning in progress:", 
+                                        suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT", 
+                                        length=30
+                                        )
+                    
+                    # Perform the scan at the current point
+                    scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
+
+                    # Register scan info
+                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"] = scan_pt_info
+                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["drawer_position"] = printerctrl.drawer_position
+                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_x"] = int(scan_coordinates[idx+len(printer_coordinates_IN)][0]) 
+                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_y"] = int(scan_coordinates[idx+len(printer_coordinates_IN)][1])
 
             _print_progress_bar(iteration=total_scan_points, 
                                 total=total_scan_points, 
@@ -518,7 +483,7 @@ def printer_calib(config_file):
 
     with PrinterCtrl(config = config["printer"]) as printerctrl:
         # Get the z coordinate from the config file
-        z = config["printer"].get("init_pos_LT")[2]  
+        z = config["printer"].get("initial_position")[2]  
         parsed_coords = []
 
         while True:

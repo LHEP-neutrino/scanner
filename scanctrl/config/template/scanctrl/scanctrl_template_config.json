@@ -2,7 +2,7 @@
     "printer": {
         "usb_port": "/dev/ttyUSB0",
         "baudrate": 115200,
-        "init_pos_LT": [360, 360, 20]
+        "initial_position": [360, 360, 45]
     },
     "arduino": {
         "port": "/dev/ttyUSB1",
@@ -24,7 +24,8 @@
                     "LT_coords": [[0, 161], [296, 461]],
                     "printer_coords": [[47, 60], [344, 354]]
                 }
-            }   
+            },
+            "DAQ_duration": 30   
         }
     },
     "pulser": {

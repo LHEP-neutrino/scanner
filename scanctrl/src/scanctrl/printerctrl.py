@@ -9,7 +9,7 @@ X_LIM = [40, 360]
 Y_LIM = [60, 360]
 Z_LIM = [19, -1]
 
-DEFAULT = [350,350,41]
+DEFAULT = [350,350,45]
 
 class PrinterCtrl:
     """
