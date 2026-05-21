@@ -328,11 +328,11 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
                 time_per_point = pulser_config["duration"] + 10 # Time per point in seconds, including some overhead for moving the printer head, starting/stopping the DAQ and pulser
 
                 if len(printer_coordinates_IN) != 0 and len(printer_coordinates_OUT) != 0:
-                    logger.info(f"Starting scan with {total_scan_points}. Please come back in about {len(printer_coordinates_IN) * time_per_point/60} min to move the drawer.")
+                    logger.info(f"Starting scan with {total_scan_points} points (IN: {len(printer_coordinates_IN)}, OUT: {len(printer_coordinates_OUT)}). Please come back in about {len(printer_coordinates_IN) * time_per_point/60} min to move the drawer.")
                 elif len(printer_coordinates_IN) != 0 and len(printer_coordinates_OUT) == 0:
-                    logger.info(f"Starting scan with {total_scan_points}. The scan will be finished in about {len(printer_coordinates_IN) * time_per_point/60} min.")    
+                    logger.info(f"Starting scan with {total_scan_points} points. The scan will be finished in about {len(printer_coordinates_IN) * time_per_point/60} min.")    
                 elif len(printer_coordinates_IN) == 0 and len(printer_coordinates_OUT) != 0:
-                    logger.info(f"Starting scan with {total_scan_points}. The scan will be done in about {len(printer_coordinates_OUT) * time_per_point/60} min.")
+                    logger.info(f"Starting scan with {total_scan_points} points. The scan will be done in about {len(printer_coordinates_OUT) * time_per_point/60} min.")
                 
 
                 if len(printer_coordinates_IN) > 0: # Only scan in the 'IN' position if there are points tagged as 'IN'
@@ -357,12 +357,20 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
 
                 # Drawer movement
                 if len(printer_coordinates_OUT) > 0 and len(printer_coordinates_IN) > 0: 
+
+                    _print_progress_bar(iteration=len(printer_coordinates_IN), 
+                                    total=total_scan_points, 
+                                    prefix="Scanning in progress:", 
+                                    suffix=f", Currently: Drawer movement in progress...", 
+                                    length=30
+                                    )
+                    
                     logger.info("First part of the scan finished. Setting SiPMs to default biased...")
 
                     supplrctrl.set_default_bias() # Set the bias voltage to the default value before the door is opened
                     logger.info("SiPMs biased down. Please change the drawer to the 'OUT' position to continue.")
                     time.sleep(3)
-                    while not click.confirm("Is the drawer in the position 'OUT' and the door closed again?"):
+                    while not click.confirm("\nIs the drawer in the position 'OUT' and the door closed again?"):
                         click.echo("Waiting for the user to change the drawer position...")
                         time.sleep(3)
 
@@ -393,7 +401,7 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
                 _print_progress_bar(iteration=total_scan_points, 
                                     total=total_scan_points, 
                                     prefix="Scan finished!       :",
-                                    suffix=len(", Currently: X={x:.2f}, Y={y:.2f}")*" ",
+                                    suffix=len(", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT")*" ",
                                     length=30
                                     )
 
