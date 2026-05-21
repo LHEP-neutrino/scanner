@@ -24,8 +24,7 @@
                     "LT_coords": [[0, 161], [296, 461]],
                     "printer_coords": [[47, 60], [344, 354]]
                 }
-            },
-            "DAQ_duration": 30   
+            }
         }
     },
     "pulser": {

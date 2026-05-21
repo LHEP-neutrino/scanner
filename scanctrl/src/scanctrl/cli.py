@@ -131,6 +131,16 @@ def debug_supplrctrl(config_file):
     """
     cl.debug_supplrctrl(config_file)
 
+@cli.command(hidden=True)
+@click.option('--config-file', '-c', help='Path to a configuration file.')
+def debug_NTCreader(config_file):
+    """
+        Command to debug the NTC reader.
+    
+        Usage: scanctrl debug-ntcreader
+    """
+    cl.debug_NTCreader(config_file)
+
 
 #-----------------------
 # Main entry point

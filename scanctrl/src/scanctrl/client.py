@@ -12,10 +12,10 @@ import numpy as np
 
 from scanctrl.printerctrl import PrinterCtrl
 from scanctrl.logger import logger, update_log_levels 
-# from scanctrl.daqctrl import run_daq, start_daq, stop_daq
 from scanctrl.daqctrl import DAQCtrl
 from scanctrl.ppulsectrl import PPULSECtrl
 from scanctrl.supplrctrl import SUPPLRCtrl
+from scanctrl.ntcreader import NTCReader
 
 LOCK_FILE = "/tmp/scanner.lock"
 
@@ -254,7 +254,7 @@ def _find_data_file(data_folder : str, max_time_diff: int = 300) -> str | None:
     return latest_file
 
 
-def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCtrl, x : float, y : float, z : float, data_folder : str) -> dict:
+def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCtrl, ntcreader : NTCReader, x : float, y : float, z : float, data_folder : str) -> dict:
     """
     Perform a single scan at the specified position.
 
@@ -262,6 +262,7 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCt
         printerctrl (PrinterCtrl): The printer controller instance.
         pulserctrl (PulserCtrl): The pulser controller instance.
         daqctrl (DAQCtrl): The DAQ controller instance.
+        ntcreader (NTCReader): The NTC reader instance.
         x (float): X coordinate for the scan.
         y (float): Y coordinate for the scan.
         z (float): Z coordinate for the scan.
@@ -287,7 +288,7 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCt
                     "y_printer": int(y),
                     "data_file" : _find_data_file(data_folder),
                     "timestamp": time.strftime("%Y%m%d_%H%M%S"),
-                    "temperature": -1, # Placeholder for temperature, to be implemented when the temperature sensor is integrated
+                    "temperature": ntcreader.read_temperature()
                     }
 
     return scan_pt_info
@@ -319,68 +320,69 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
     scan_summary_json = {"N_scan_points": total_scan_points}
 
     z  = int(scan_params["z_scan_height"])
+    
+    with NTCReader() as ntcreader:
+        with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
+            with DAQCtrl() as daqctrl:
 
-    with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
-        with DAQCtrl() as daqctrl:
+                if len(printer_coordinates_IN) > 0: # Only scan in the 'IN' position if there are points tagged as 'IN'
 
-            if len(printer_coordinates_IN) > 0: # Only scan in the 'IN' position if there are points tagged as 'IN'
+                    for idx, (x, y) in enumerate(printer_coordinates_IN):
+                        _print_progress_bar(iteration=idx, 
+                                            total=len(printer_coordinates_IN), 
+                                            prefix="Scanning in progress:", 
+                                            suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: IN", 
+                                            length=30
+                                            )
+                        
+                        # Perform the scan at the current point
+                        scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, ntcreader, x, y, z, data_folder)
 
-                for idx, (x, y) in enumerate(printer_coordinates_IN):
-                    _print_progress_bar(iteration=idx, 
-                                        total=len(printer_coordinates_IN), 
-                                        prefix="Scanning in progress:", 
-                                        suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: IN", 
-                                        length=30
-                                        )
-                    
-                    # Perform the scan at the current point
-                    scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
+                        # Register scan info
+                        scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
+                        scan_summary_json[f"scan_pt_{idx}"]["drawer_position"] = printerctrl.drawer_position
+                        scan_summary_json[f"scan_pt_{idx}"]["LT_x"] = int(scan_coordinates[idx][0])
+                        scan_summary_json[f"scan_pt_{idx}"]["LT_y"] = int(scan_coordinates[idx][1])
 
-                    # Register scan info
-                    scan_summary_json[f"scan_pt_{idx}"] = scan_pt_info
-                    scan_summary_json[f"scan_pt_{idx}"]["drawer_position"] = printerctrl.drawer_position
-                    scan_summary_json[f"scan_pt_{idx}"]["LT_x"] = int(scan_coordinates[idx][0])
-                    scan_summary_json[f"scan_pt_{idx}"]["LT_y"] = int(scan_coordinates[idx][1])
+                # Drawer movement
 
-            # Drawer movement
+                if len(printer_coordinates_OUT) > 0: # Only ask to move the drawer if there are points to scan in the OUT position
 
-            if len(printer_coordinates_OUT) > 0: # Only ask to move the drawer if there are points to scan in the OUT position
-
-                supplrctrl.set_default_bias() # Set the bias voltage to the default value before the door is opened
-                logger.info("\n Scan in 'IN' configuration finished. SiPMs biased down. Please change the drawer to the 'OUT' position to continue.")
-                time.sleep(3)
-                while not click.confirm("Is the drawer in the position 'OUT' and the door closed again?"):
-                    click.echo("Waiting for the user to change the drawer position...")
+                    supplrctrl.set_default_bias() # Set the bias voltage to the default value before the door is opened
+                    logger.info("\n Scan in 'IN' configuration finished. SiPMs biased down. Please change the drawer to the 'OUT' position to continue.")
                     time.sleep(3)
+                    while not click.confirm("Is the drawer in the position 'OUT' and the door closed again?"):
+                        click.echo("Waiting for the user to change the drawer position...")
+                        time.sleep(3)
 
-                printerctrl.drawer_position = 1 # Set the drawer position to 1 (OUT) after confirming with the user
+                    printerctrl.drawer_position = 1 # Set the drawer position to 1 (OUT) after confirming with the user
 
-                supplrctrl.set_bias_voltage_channels()
+                    supplrctrl.set_bias_voltage_channels()
 
 
-                for idx, (x, y) in enumerate(printer_coordinates_OUT):
-                    _print_progress_bar(iteration=idx, 
-                                        total=len(printer_coordinates_OUT), 
-                                        prefix="Scanning in progress:", 
-                                        suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT", 
-                                        length=30
-                                        )
-                    
-                    # Perform the scan at the current point
-                    scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, x, y, z, data_folder)
+                    for idx, (x, y) in enumerate(printer_coordinates_OUT):
+                        _print_progress_bar(iteration=idx, 
+                                            total=len(printer_coordinates_OUT), 
+                                            prefix="Scanning in progress:", 
+                                            suffix=f", Currently: X={x:.2f}, Y={y:.2f}, Drawer: OUT", 
+                                            length=30
+                                            )
+                        
+                        # Perform the scan at the current point
+                        scan_pt_info = _scan_pt(printerctrl, pulserctrl, daqctrl, ntcreader, x, y, z, data_folder)
 
-                    # Register scan info
-                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"] = scan_pt_info
-                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["drawer_position"] = printerctrl.drawer_position
-                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_x"] = int(scan_coordinates[idx+len(printer_coordinates_IN)][0]) 
-                    scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_y"] = int(scan_coordinates[idx+len(printer_coordinates_IN)][1])
+                        # Register scan info
+                        scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"] = scan_pt_info
+                        scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["drawer_position"] = printerctrl.drawer_position
+                        scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_x"] = int(scan_coordinates[idx+len(printer_coordinates_IN)][0]) 
+                        scan_summary_json[f"scan_pt_{idx+len(printer_coordinates_IN)}"]["LT_y"] = int(scan_coordinates[idx+len(printer_coordinates_IN)][1])
 
-            _print_progress_bar(iteration=total_scan_points, 
-                                total=total_scan_points, 
-                                prefix="Scan finished!       :",
-                                suffix=len(", Currently: X={x:.2f}, Y={y:.2f}")*" ",
-                                length=30
-                                )
+                _print_progress_bar(iteration=total_scan_points, 
+                                    total=total_scan_points, 
+                                    prefix="Scan finished!       :",
+                                    suffix=len(", Currently: X={x:.2f}, Y={y:.2f}")*" ",
+                                    length=30
+                                    )
 
     return scan_summary_json
 
@@ -737,5 +739,23 @@ def debug_supplrctrl(config_file : str):
     with SUPPLRCtrl(supplr_config = config["supplr"]) as supplrctrl:
         logger.info("Supply controller initialized successfully.")
         supplrctrl.set_bias_voltage_channels()
+
+    logger.info("Done!")
+
+def debug_ntcreader(config_file : str):
+    """
+    Debug function for the NTC reader. It checks the connection to the Arduino and tries to read the temperature.
+
+    Args:
+        config_file (str): Path to the scanctrl configuration file.
+    """
+    logger.info("Running debug-ntcreader")
+
+    config = _load_config(config_file)
+
+    with NTCReader() as ntcreader:
+        logger.info("NTC reader initialized successfully.")
+        temperature = ntcreader.read_temperature()
+        logger.info(f"Read temperature: {temperature} °C")
 
     logger.info("Done!")
