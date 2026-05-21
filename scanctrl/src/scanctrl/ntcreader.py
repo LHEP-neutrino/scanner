@@ -103,10 +103,12 @@ class NTCReader:
         try:
             line = self.ports.readline().decode('utf-8').strip()
             if line:
-                R = float(line)
-                T = resistance_to_temperature(R)
-                logger.debug(f"Read resistance: {R:.2f} Ohm, converted to temperature: {T:.2f} deg. C")
-                return T
+                cleaned_line = line.replace('\x00', '').strip()
+                if cleaned_line:
+                    R = float(cleaned_line)
+                    T = resistance_to_temperature(R)
+                    logger.debug(f"Read resistance: {R:.2f} Ohm, converted to temperature: {T:.2f} deg. C")
+                    return T
             else:
                 logger.warning("No data received from NTCReader.")
                 return None
