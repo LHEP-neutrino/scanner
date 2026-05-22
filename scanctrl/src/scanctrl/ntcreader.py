@@ -11,7 +11,7 @@ R_NOMINAL = 10000.0  # resistance at 25°C
 BETA      = 3380.0   # beta coefficient
 T_NOMINAL = 25.0     # reference temperature in Celsius
 
-def resistance_to_temperature(resistance):
+def resistance_to_temperature(resistance, R0=R_NOMINAL, beta=BETA, T0=T_NOMINAL):
     '''
         Use the Steinhart-Hart Beta Equation to convert the resistance of the NTC sensor to a temperature
         
@@ -21,24 +21,25 @@ def resistance_to_temperature(resistance):
         Return:
             The temperature in Celsius equivalant to input 'resistance'
     '''
-    steinhart  = resistance / R_NOMINAL        # R/R0
+    steinhart  = resistance / R0        # R/R0
     steinhart  = log(steinhart)                # ln(R/R0)
-    steinhart /= BETA                          # (1/Beta) * ln(R/R0)
-    steinhart += 1.0 / (T_NOMINAL + 273.15)    # + 1/T0 (Kelvin)
+    steinhart /= beta                          # (1/Beta) * ln(R/R0)
+    steinhart += 1.0 / (T0 + 273.15)    # + 1/T0 (Kelvin)
     steinhart  = 1.0 / steinhart               # invert → Kelvin
     return steinhart - 273.15                  # convert to Celsius
 
 class NTCReader:
-    def __init__(self, port=PORT, baudrate=BAUDRATE, timeout=2, r_nominal=R_NOMINAL, beta=BETA, t_nominal=T_NOMINAL):
+    def __init__(self,config, port=PORT, baudrate=BAUDRATE, timeout=2, r_nominal=R_NOMINAL, beta=BETA, t_nominal=T_NOMINAL):
         """
         Initialize the connection to the Arduino.
         """
-        self.port = port
-        self.baudrate = baudrate
 
-        self.r_nominal = r_nominal
-        self.beta = beta
-        self.t_nominal = t_nominal
+        self.port = config.get("port", PORT)
+        self.baudrate = config.get("baudrate", BAUDRATE)
+
+        self.r_nominal = config["ntc_sensor"].get("R0", R_NOMINAL)
+        self.beta = config["ntc_sensor"].get("beta", BETA)
+        self.t_nominal = config["ntc_sensor"].get("T0", T_NOMINAL)
 
         logger.debug(f"Opening connection to: {self.port} @ {self.baudrate}")
         logger.info(f"Initializing NTCReader...")
@@ -46,7 +47,7 @@ class NTCReader:
         
         try:
             # Add timeout=2.0 to prevent hanging if printer is unresponsive
-            self.ports = serial.Serial(port, baudrate, timeout=timeout)
+            self.ports = serial.Serial(self.port, self.baudrate, timeout=timeout)
             # Small delay to let the hardware settle (mandatory otherwise the first command often gets lost)
             time.sleep(1)
             
@@ -112,7 +113,7 @@ class NTCReader:
                 cleaned_line = line.replace('\x00', '').strip()
                 if cleaned_line:
                     R = float(cleaned_line)
-                    T = resistance_to_temperature(R)
+                    T = resistance_to_temperature(R, R0=self.r_nominal, beta=self.beta, T0=self.t_nominal)
                     logger.debug(f"Read resistance: {R:.2f} Ohm, converted to temperature: {T:.2f} deg. C")
                     return T
             else:

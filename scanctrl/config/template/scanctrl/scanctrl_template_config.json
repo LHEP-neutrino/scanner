@@ -1,12 +1,18 @@
 {
     "printer": {
-        "usb_port": "/dev/ttyUSB0",
+        "usb_port": "/dev/ttyUSB1",
         "baudrate": 115200,
         "initial_position": [360, 360, 45]
     },
     "arduino": {
-        "port": "/dev/ttyUSB1",
-        "baudrate": 9600
+        "port": "/dev/ttyUSB0",
+        "baudrate": 9600,
+        "ntc_sensor": {
+            "beta": 3380.0,
+            "R0": 10000,
+            "T0": 25
+        }
+
     },
     "scan": {
         "data_folder": "/mnt/storage/data/scanner",

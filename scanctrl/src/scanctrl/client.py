@@ -294,7 +294,7 @@ def _scan_pt(printerctrl : PrinterCtrl, pulserctrl : PPULSECtrl, daqctrl : DAQCt
     return scan_pt_info
 
 
-def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config : dict, pulser_config : dict) -> dict:
+def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config : dict, pulser_config : dict, arduino_config : dict) -> dict:
     """
     Perform a full scan.
 
@@ -303,7 +303,7 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
         supplrctrl (SupplrCtrl): The supplier controller instance.
         scan_config (dict): The scan configuration.
         pulser_config (dict): The pulser configuration.
-
+        arduino_config (dict): The Arduino configuration.
 
     Returns:
         scan_summary_json (dict): A dictionary containing a summary of the scan.
@@ -321,7 +321,7 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
 
     z  = int(scan_params["z_scan_height"])
 
-    with NTCReader() as ntcreader:
+    with NTCReader(arduino_config) as ntcreader:
         with PPULSECtrl(pulser_config = pulser_config) as pulserctrl:
             with DAQCtrl() as daqctrl:
 
@@ -480,7 +480,7 @@ def run_scanner(config_file : str):
                 
     
                 # Perform the scan
-                scan_summary_json = _full_scan(printerctrl = printerctrl, supplrctrl = supplrctrl, scan_config = config["scan"], pulser_config = config["pulser"])
+                scan_summary_json = _full_scan(printerctrl = printerctrl, supplrctrl = supplrctrl, scan_config = config["scan"], pulser_config = config["pulser"], arduino_config=config["arduino"])
 
             # Add scan summary info to the json
             scanner_summary_json["scan_summary"] = scan_summary_json
@@ -507,7 +507,7 @@ def printer_calib(config_file):
 
     with PrinterCtrl(config = config["printer"]) as printerctrl:
         # Get the z coordinate from the config file
-        z = config["printer"].get("initial_position")[2]  
+        z = config.get("initial_position")[2]  
         parsed_coords = []
 
         while True:
@@ -775,7 +775,7 @@ def debug_ntcreader(config_file : str):
 
     config = _load_config(config_file)
 
-    with NTCReader() as ntcreader:
+    with NTCReader(config["arduino"]) as ntcreader:
         logger.info("NTC reader initialized successfully.")
         while click.confirm("\nDo you want to read the temperature?"):
             temperature = ntcreader.read_temperature()
