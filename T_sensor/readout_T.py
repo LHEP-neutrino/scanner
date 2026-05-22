@@ -6,7 +6,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-PORT     = '/dev/ttyUSB1'
+PORT     = '/dev/ttyUSB0'
 BAUDRATE = 9600
 
 # NTC constants — adjust to match your sensor's datasheet
