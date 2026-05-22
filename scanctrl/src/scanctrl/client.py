@@ -376,9 +376,10 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
 
                     printerctrl.drawer_position = 1 # Set the drawer position to 1 (OUT) after confirming with the user
 
-                    logger.info(f"It remains {len(printer_coordinates_OUT)} scan points. The scan will be finished in about {len(printer_coordinates_OUT) * time_per_point/60} min.")
-
                     supplrctrl.set_bias_voltage_channels()
+
+                    logger.info(f"SiPMs biased. It remains {len(printer_coordinates_OUT)} scan points. The scan will be finished in about {len(printer_coordinates_OUT) * time_per_point/60} min.")
+
 
                 if len(printer_coordinates_OUT) > 0:
                     for idx, (x, y) in enumerate(printer_coordinates_OUT):
@@ -650,23 +651,23 @@ def debug_printerCtrl(config_file : str):
         try:
             with PrinterCtrl(config = config["printer"]) as printer:
                 # Move to test positions
-                x, y, z = 200, 200, 20
+                x, y, z = 200, 200, 45
                 logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
                 printer.go_to(x, y, z)
 
-                x, y, z = 200, 100, 20
+                x, y, z = 200, 100, 45
                 logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
                 printer.go_to(x, y, z)
 
-                x, y, z = 100, 100, 20
+                x, y, z = 100, 100, 45
                 logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
                 printer.go_to(x, y, z)
 
-                x, y, z = 100, 200, 20
+                x, y, z = 100, 200, 45
                 logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
                 printer.go_to(x, y, z)
 
-                x, y, z = 200, 200, 20
+                x, y, z = 200, 200, 45
                 logger.info(f"Moving to X:{x}, Y:{y}, Z:{z}")
                 printer.go_to(x, y, z)
 
