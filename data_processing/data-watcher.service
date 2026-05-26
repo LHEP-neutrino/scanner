@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch data folder for new *_summary.json files
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/path/to/data-watcher.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

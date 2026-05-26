@@ -1,0 +1,10 @@
+[Unit]
+Description=Process summary file %I
+# Prevent the same file from being queued twice simultaneously
+# (e.g. if close_write and moved_to both fire for the same file)
+
+[Service]
+Type=oneshot
+ExecStart=python3 /path/to/data-processing.py "%I"
+StandardOutput=journal
+StandardError=journal
