@@ -5,6 +5,6 @@ Description=Process summary file %I
 
 [Service]
 Type=oneshot
-ExecStart=python3 /path/to/data-processing.py "%I"
+ExecStart=python3 /path/to/data_processing.py "%I"
 StandardOutput=journal
 StandardError=journal
