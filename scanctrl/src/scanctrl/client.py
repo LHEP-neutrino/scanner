@@ -317,7 +317,9 @@ def _full_scan(printerctrl : PrinterCtrl, supplrctrl : SUPPLRCtrl, scan_config :
     scan_summary_json = {}
     total_scan_points = len(printer_coordinates_IN) + len(printer_coordinates_OUT)
 
-    scan_summary_json = {"N_scan_points": total_scan_points}
+    scan_summary_json = {"start_pos": scan_params.get("start_pos", None),
+                        "end_pos": scan_params.get("end_pos", None),
+                        "N_steps": scan_params.get("N_steps", None)}
 
     z  = int(scan_params["z_scan_height"])
 

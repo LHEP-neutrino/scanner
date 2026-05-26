@@ -45,6 +45,11 @@ sudo apt install inotify-tools
 # RHEL/Fedora
 sudo dnf install inotify-tools
 ```
+In the venv install:
+```bash
+pip install matplotlib
+```
+
 ### Edit folder path
 In `data-watcher.service` and `data-processing@.service` you need to edit the path to the file to execute (`ExecStart=...`).
 
