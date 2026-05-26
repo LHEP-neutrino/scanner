@@ -1,6 +1,6 @@
 # Summary File Watcher
 
-Watches data folder for new `*_summary.json` files and dispatches each one to `data-processing.py` as an isolated systemd unit.
+Watches data folder for new `*_summary.json` files and dispatches each one to `data_processing.py` as an isolated systemd unit.
 
 ---
 
@@ -34,7 +34,7 @@ python3 data_processing.py /mnt/data/scanRun_summary.json
 
 ## Installation
 
-After the installation of the necessary tool you can either install it through `install.sh` or manually
+After the installation of the necessary tool you need to edit the `.service` files to match your folder structure. Then you can either install it through `install.sh` or manually
 
 ### Install dependencies
 
@@ -45,10 +45,12 @@ sudo apt install inotify-tools
 # RHEL/Fedora
 sudo dnf install inotify-tools
 ```
+### Edit folder path
+In `data-watcher.service` and `data-processing@.service` you need to edit the path to the file to execute (`ExecStart=...`).
 
 ### Install script
 
-To install the services direclty run
+To install the services using the script first you need to edit its configuration and then direclty run it as follow:
 
 ```bash
 sudo bash /path/to/data_processing/install.sh
