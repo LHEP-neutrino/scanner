@@ -507,7 +507,6 @@ def printer_calib(config_file):
 
     with PrinterCtrl(config = config["printer"]) as printerctrl:
         # Get the z coordinate from the config file
-        print(config["printer"].get("initial_position"))
         z = config["printer"].get("initial_position")[2]  
         parsed_coords = []
 
