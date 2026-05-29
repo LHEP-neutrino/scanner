@@ -24,7 +24,7 @@ class PrinterCtrl:
         """
         Initialize the printer connection and perform homing.
         """
-        self.init_x, self.init_y, self.init_z = DEFAULT  # Initial position for the LT (X, Y, Z)
+        self.init_x, self.init_y, self.init_z = config.get('initial_position', DEFAULT)  # Initial position for the LT (X, Y, Z)
         self.current_x, self.current_y, self.current_z = -1, -1, -1
         
         self.ports: Optional[serial.Serial] = None
