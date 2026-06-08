@@ -6,6 +6,3 @@ dependencies = [
     "numpy>=2.4.4",
     "h5py>=3.16.0"
 ]
-
-[project.scripts]
-data-processing = "data_processing:main"
