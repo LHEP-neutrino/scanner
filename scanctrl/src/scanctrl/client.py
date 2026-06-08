@@ -491,7 +491,7 @@ def run_scanner(config_file : str):
             summary_path = os.path.join(config["scan"]["data_folder"], f"{scan_name}_summary.json")
 
             with open(summary_path, 'w') as f:
-                json.dump(scanner_summary_json, f)
+                json.dump(scanner_summary_json, f, indent=4, ensure_ascii=False)
 
 def printer_calib(config_file):
     """
