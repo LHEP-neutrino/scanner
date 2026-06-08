@@ -1,0 +1,11 @@
+[project]
+name = "data-processing"
+version = "0.1.0"
+dependencies = [
+    "matplotlib>=3.10.9",
+    "numpy>=2.4.4",
+    "h5py>=3.16.0"
+]
+
+[project.scripts]
+data-processing = "data_processing:main"
