@@ -7,38 +7,43 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import argparse
+import subprocess
+import h5py
+
+from calibWvfms import calibWvfms
 
 # Logging is done automatically by systemd, it can be viewed with `journalctl -u data-processing@*`
+
+ADCS =[0]
+
+CHANS = [0,1,2,3,4,5,6]
+
+SIGNAL_WINDOW = [35,70]
 
 
 def _compute_files_path(raw_file, verbose=False):
     """
-    Flow the raw data file return the path to the flowed file.
+    Compute the flow file path from the raw file path.
 
     Args:
         raw_file (str): The path to the raw data file.
     Returns:
-        folw_file (str): The path to the flowed file.
+        flow_file (str): The path to the future flowed file.
     """
-    # print(f"Flowing {raw_file}")
-
-    # 1. Check that the file exists and is a file (not a directory)
-    # if os.path.isfile(raw_file):
-
-    # 2. Get the directory and create the flow directory if it doesn't exist
+    # Get the directory and create the flow directory if it doesn't exist
     file_dir = os.path.dirname(raw_file)
     flow_file_dir = os.path.join(file_dir, "flow")
-    # os.makedirs(flow_file_dir, exist_ok=True)
+    os.makedirs(flow_file_dir, exist_ok=True)
     
-    # 3. Get the filename without the extension (removes .data)
+    # Get the filename without the extension (removes .data)
     filename = os.path.splitext(os.path.basename(raw_file))[0]
     
-    # 4. Construct the flow file
+    # Construct the flow file
     flow_filename = filename + '.FLOW.hdf5'
     flow_file = os.path.join(flow_file_dir, flow_filename)
 
     if verbose:
-       
+        # Construct the waveform examples PDF file path
         wvfmExamples_filename = filename + '_wvfmsExamples.pdf'
         wvfmExamples = os.path.join(flow_file_dir, wvfmExamples_filename)
 
@@ -48,24 +53,33 @@ def _compute_files_path(raw_file, verbose=False):
     return flow_file, wvfmExamples
 
 def _flow_file(raw_file,flow_file):
+    """
+        Flow the raw file using ndlar-flow and save the result to the flow file path.
 
-    # else:
-    #     print(f"ERROR:File does not exist or is not a file: {raw_file}")
-    #     return None
+        Args:
+            raw_file (str): The path to the raw data file.
+            flow_file (str): The path to save the flowed file.
+
+    """
+
+    print(f"Flowing file: {raw_file} to {flow_file}.")
 
     try:
-        # Simulate the flow process (replace with actual flow command)
-        # For example, if the flow command is `flow_data --input raw_file --output flowed_file`
-        # you would use subprocess to call it like this:
-        # subprocess.run(["flow_data", "--input", raw_file, "--output", flowed_file], check=True)
-
-        # Here we just simulate the flow by copying the file (replace with actual flow logic)
+        command = ["h5flow", "-c", "/home/lhep/scanner/ndlar_flow/yamls/TUNE_flow/workflows/light/light_event_building_scanner.yaml", "-i", raw_file, "-o", flow_file]
         
-        print(f"Flowing file: {raw_file} to {flow_file}.")
+        result = subprocess.run(command,
+                                capture_output=True,   # Capture stdout and stderr
+                                text=True,             # Decode output to string
+                                check=True)            # Raise an exception if the command fails
 
-    except Exception as e:
-        print(f"Error flowing file {raw_file}: {e}")
-        return 1
+        # Log the standard output
+        if result.stdout:
+            print("Command output:\n%s", result.stdout)
+
+    except subprocess.CalledProcessError as e:
+        # Log the error message and the command output if available
+        print(f"WARNING: Flowing for file {raw_file} failed with return code {e.returncode}")
+        print(f"Error output:\n{e.stderr if e.stderr else 'No error output'}")
 
     return 0
 
@@ -80,40 +94,39 @@ def _compute_metrics(flowed_file, verbose=False, wvfmExamples=None):
     Returns:
         metrics (dict): A dictionary containing the computed metrics.
     """
-    # read file
 
-    # compute metrics
-    # for i in range(Number of event):
-        #do something
-
-    if verbose and wvfmExamples:
-        print(f"print some waveform examples to: {wvfmExamples}")
-        with PdfPages(wvfmExamples) as pdf:
-            for i in range(10):
-                # plot the 10 first wavefomrs
-                fig, ax = plt.subplots()
-                ax.plot(np.random.rand(100))  # Simulate a waveform with random data
-                ax.set_title(f"Waveform Example {i+1}")
-                pdf.savefig(fig)
-                plt.close(fig)
+    # if verbose and wvfmExamples:
+    #     print(f"print some waveform examples to: {wvfmExamples}")
+    #     with PdfPages(wvfmExamples) as pdf:
+    #         for i in range(10):
+    #             # plot the 10 first wavefomrs
+    #             fig, ax = plt.subplots()
+    #             ax.plot(np.random.rand(100))  # Simulate a waveform with random data
+    #             ax.set_title(f"Waveform Example {i+1}")
+    #             pdf.savefig(fig)
+    #             plt.close(fig)
         
+    # Load calibration class
+    wvfms = calibWvfms(filedir = os.path.dirname(flowed_file), filename = os.path.basename(flowed_file), output_path=os.path.dirname(flowed_file))
                 
-    
-    # Simulate metric computation (replace with actual metric calculation)
-    metrics = {
-        "metric_1": 0.5,
-        "metric_2": 0.8
-    }
+    wvfms.compute_mean_integrals(Nevent=9000, adcs=ADCS, chans=CHANS, int_window=SIGNAL_WINDOW, cut = '1peak', minWidth=3, verbose=False)
+
+    metrics = {}
+    for adc in ADCS:
+        metrics[adc] = {}
+        for chan in CHANS:
+            # print(f"ADC: {adc}, CHAN: {chan}, Mean Integral: {wvfms.mean_integrals[adc][chan]}")
+            metrics[adc][chan] = wvfms.mean_integrals[adc][chan]
     
     return metrics
 
 def _data_process(summary_file, verbose=False):
     """
-    Process the data files to calculate metrics for plotting.
+    Process the scanner data files to compute metrics for plotting.
 
-    1. Read the summary file
+    1. Read the summary file, get the raw data files path
 
-    2. Flow the data
+    2. Flow the data, store them in a 
     
     3. Exploit the data
     
@@ -136,45 +149,57 @@ def _data_process(summary_file, verbose=False):
 
     with open(summary_file, 'r') as f:
         summary_data = json.load(f)
-        scan_name = summary_data.get("scan_name", {})
-        lt_serial = summary_data.get("lt_serial", {})
-        # scan_comment = summary_data.get("scan_comment", {})
-        # config_file = summary_data.get("config_file", {})
         scan_summary = summary_data.get("scan_summary", {})
 
-    plotting_info["scan_name"] = scan_name
-    plotting_info["lt_serial"] = lt_serial
 
        
     # Regex to capture the number after 'scan_pt_'
     pattern = re.compile(r'^scan_pt_(\d+)$')
 
-    for key in scan_summary.keys():
-        if pattern.match(key):
-            raw_file = scan_summary[key].get("data_file", "")
+    # Loop through the scan points in the summary and process each data file
+    for scan_pt in scan_summary.keys():
+        if pattern.match(scan_pt):
+            # Get raw file path
+            raw_file = scan_summary[scan_pt].get("data_file", "")
+
+            # Compute flow_file and pdf example name 
             flow_file, wvfmExamples = _compute_files_path(raw_file, verbose=verbose)
+
+            # Flow the file
             is_flowed = _flow_file(raw_file, flow_file)
+
             if is_flowed == 0:
-                scan_summary[key]["flowed_file"] = flow_file
+                # Save flowed file path in the summary for reference
+                scan_summary[scan_pt]["flowed_file"] = flow_file
+
+                # Compute metrics
                 metrics = _compute_metrics(flow_file, verbose=verbose, wvfmExamples=wvfmExamples)
-                scan_summary[key]["metrics"] = metrics
+                scan_summary[scan_pt]["metrics"] = metrics
             else:
-                scan_summary[key]["flowed_file"] = None
+                scan_summary[scan_pt]["flowed_file"] = None
             
-
-    # print(f"Scan info: {plotting_info}")
-
-    return scan_summary, plotting_info
+    summary_data["scan_summary"] = scan_summary
     
-def _plot_and_save(scan_summary, scan_info, verbose=False):
+    # Save the updated summary data back to the file
+    with open(summary_file, 'w', encoding='utf-8') as f:
+        json.dump(summary_data, f, indent=4, ensure_ascii=False)
+    
+def _plot_and_save(summary_file, verbose=False):
     """
     Plot the calculated metrics and save the results to files.
     
     Args:
-        scan_summary (dict): A dictionary containing the scan summary information.
-        scan_info (dict): A dictionary containing scan information for plotting.
+        summary_file (str): The path to the summary JSON file containing the metrics.
         verbose (bool): Whether to print verbose output.
     """
+    # Read the summary file and extract the scan info and metrics
+    print(f"Plotting results from summary file: {summary_file}")
+    with open(summary_file, 'r') as f:
+        summary_data = json.load(f)
+        scan_summary = summary_data.get("scan_summary", {})
+        scan_info = summary_data.get("scan_info", {})
+
+
     # Simulate plotting (replace with actual plotting logic)
     corner1 = [0,0]
     corner2 = [296, 461]
@@ -224,22 +249,25 @@ def main():
     # Use the arguments
     if args.verbose:
         print(f"Verbose mode on. Processing: {args.file_path}")
-
-    print(f"File path: {args.file_path}")
+    else:
+        print(f"Processing: {args.file_path}")
 
     summary_file_path = args.file_path
     
-    #DEBUG
-    summary_file_path = "/Users/nsallin/develop/scanner/data/scanner_summary/20260522_1811_4-09_summary.json"  
+    # #DEBUG
+    # summary_file_path = "/Users/nsallin/develop/scanner/data/scanner_summary/20260522_1811_4-09_summary.json"  
     if not os.path.isfile(summary_file_path):
         print(f"File does not exist or is not a file: {summary_file_path}")
         sys.exit(1)
 
     # Process the summary file
-    scan_summary, scan_info = _data_process(summary_file_path, verbose=args.verbose)
+    _data_process(summary_file_path, verbose=args.verbose)
+    
+    print("File updated successfully.")
 
-    # Plot and store the results
-    _plot_and_save(scan_summary, scan_info, verbose=args.verbose)
+    # # Plot and store the results
+    # _plot_and_save(summary_file_path, verbose=args.verbose)
+    print("TODO: Plotting is not implemented yet.")
 
 if __name__ == "__main__":
     main()
