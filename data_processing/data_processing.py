@@ -110,14 +110,15 @@ def _compute_metrics(flowed_file, verbose=False, wvfmExamples=None):
     # Load calibration class
     wvfms = calibWvfms(filedir = os.path.dirname(flowed_file), filename = os.path.basename(flowed_file), output_path=os.path.dirname(flowed_file))
                 
-    wvfms.compute_mean_integrals(Nevent=9000, adcs=ADCS, chans=CHANS, int_window=SIGNAL_WINDOW, cut = '1peak', minWidth=3, verbose=False)
+    wvfms.compute_mean_integrals(Nevent=9000, adcs=ADCS, chans=CHANS, int_window=SIGNAL_WINDOW, cut = '1peak', baseline_correction=True, minWidth=3, verbose=False)
 
     metrics = {}
+    metrics["mean_integrals"] = {}
     for adc in ADCS:
-        metrics[adc] = {}
+        metrics["mean_integrals"][adc] = {}
         for chan in CHANS:
             # print(f"ADC: {adc}, CHAN: {chan}, Mean Integral: {wvfms.mean_integrals[adc][chan]}")
-            metrics[adc][chan] = wvfms.mean_integrals[adc][chan]
+            metrics["mean_integrals"][adc][chan] = wvfms.mean_integrals[adc][chan]
     
     return metrics
 
@@ -184,6 +185,47 @@ def _data_process(summary_file, verbose=False):
     # Save the updated summary data back to the file
     with open(summary_file, 'w', encoding='utf-8') as f:
         json.dump(summary_data, f, indent=4, ensure_ascii=False)
+
+def _2d_plots(start, end, N_steps, metrics, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]", colorbar_label="Metric Value", verbose=False):
+    """
+    Create 2D plots of the metrics.
+
+    Args:
+        start (list): The starting position of the scan [x, y].
+        end (list): The ending position of the scan [x, y].
+        N_steps (list): The number of steps in x and y directions [N_x, N_y].
+        metrics (numpy.ndarray): A dictionary containing the computed metrics for each scan point.
+        title (str): The title of the plot.
+        xlabel (str): The label for the x-axis.
+        ylabel (str): The label for the y-axis.
+        colorbar_label (str): The label for the colorbar.
+    """
+    x_edges = np.linspace(start[0], end[0], N_steps[0]+1)
+    y_edges = np.linspace(start[1], end[1], N_steps[1]+1)
+    bin_2d = metrics
+
+    if verbose:
+        print(f"X edges: {x_edges}")
+        print(f"Y edges: {y_edges}")
+        print(f"2D bins: {bin_2d}")
+
+
+    fig, ax = plt.subplots()
+    mesh = ax.pcolormesh(x_edges, y_edges, bin_2d)
+    # Add text in the center of each 2D bin
+    for i in range(len(y_edges) - 1):
+        for j in range(len(x_edges) - 1):
+            x_center = (x_edges[j] + x_edges[j+1]) / 2
+            y_center = (y_edges[i] + y_edges[i+1]) / 2
+            ax.text(x_center, y_center, str(f"{bin_2d[i, j]:.2f}"),
+                    ha='center', va='center', fontsize=9, color='white', fontweight='bold')
+            
+    fig.colorbar(mesh, ax=ax, label=colorbar_label)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    plt.show()
+    # print(f"Plotting and saving results for scan: {scan_info.get('scan_name', 'Unknown')}")
     
 def _plot_and_save(summary_file, verbose=False):
     """
@@ -198,38 +240,16 @@ def _plot_and_save(summary_file, verbose=False):
     with open(summary_file, 'r') as f:
         summary_data = json.load(f)
         scan_summary = summary_data.get("scan_summary", {})
-        scan_info = summary_data.get("scan_info", {})
+        # scan_info = summary_data.get("scan_info", {})
 
-
-    # Simulate plotting (replace with actual plotting logic)
-    corner1 = [0,0]
-    corner2 = [296, 461]
-    N_steps = [2, 5]
-    x_edges = np.linspace(corner1[0], corner2[0], N_steps[0]+1)
-    y_edges = np.linspace(corner1[1], corner2[1], N_steps[1]+1)
-    bin_2d = np.random.rand(N_steps[1], N_steps[0])
-
-    print(f"X edges: {x_edges}")
-    print(f"Y edges: {y_edges}")
-    print(f"2D bins: {bin_2d}")
-
-
-    fig, ax = plt.subplots()
-    mesh = ax.pcolormesh(x_edges, y_edges, bin_2d)
-    # Add text in the center of each 2D bin
-    for i in range(len(y_edges) - 1):
-        for j in range(len(x_edges) - 1):
-            x_center = (x_edges[j] + x_edges[j+1]) / 2
-            y_center = (y_edges[i] + y_edges[i+1]) / 2
-            ax.text(x_center, y_center, str(f"{bin_2d[i, j]:.2f}"),
-                    ha='center', va='center', fontsize=9, color='white', fontweight='bold')
-            
-    fig.colorbar(mesh, ax=ax, label='Pulse Integral [ADC unit]')
-    ax.set_xlabel('X [mm]')
-    ax.set_ylabel('Y [mm]')
-    ax.set_title(f"Scan: {scan_info.get('scan_name', 'Unknown Scan')}")
-    plt.show()
-    # print(f"Plotting and saving results for scan: {scan_info.get('scan_name', 'Unknown')}")
+    # Extract necessary information for plotting
+    start_point = scan_summary.get("start_pos", [0, 0])
+    end_point = scan_summary.get("end_pos", [296, 461])
+    N_steps = scan_summary.get("N_steps", None)
+    integrals = scan_summary.get("metrics", {}).get("mean_integrals", {})
+    
+    if N_steps is not None:
+        _2d_plots(start_point, end_point, N_steps, integrals, colorbar_label='Pulse Integral [ADC unit]', verbose=verbose)
 
 
 def main():

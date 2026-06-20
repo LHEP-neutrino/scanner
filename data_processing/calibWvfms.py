@@ -78,6 +78,7 @@ class calibWvfms:
         self.extrem_Int_val = [[None for _ in range(self.Nchan)] for _ in range(self.Nadc)] #list of event number that have some strange int values
         self.fingerplots = [[None for _ in range(self.Nchan)] for _ in range(self.Nadc)]
         self.mean_integrals = [[None for _ in range(self.Nchan)] for _ in range(self.Nadc)]
+        self.baselines = [[None for _ in range(self.Nchan)] for _ in range(self.Nadc)]
 
 
         # Fit variables
@@ -117,6 +118,38 @@ class calibWvfms:
         print(f"Number of events in the file: {self.Nevents}")
 
         return None
+    
+    def _get_baselines(self, sig, trim_frac=0.7):
+        '''
+        Compute the baseline of the waveforms by pooling the baseline points (i.e. points outside of the signal window 'sig')
+        of all the events and computing the median of the lowest values (after trimming a fraction 'trim_frac' of the highest
+        values to mitigate the effect of outliers aka dark counts).
+
+        Args:
+            sig (list):         List of two integers defining the signal window [start, end]
+            trim_frac (float):  Fraction of the highest values to trim before computing the median baseline (default: 0.5)
+        '''
+        print(type(self.light_wvfms))
+        print(self.light_wvfms.shape, self.light_wvfms.dtype)
+        baseline_pts = np.concatenate(
+            (self.light_wvfms[..., :sig[0]], self.light_wvfms[..., sig[1]:]),
+            axis=-1
+            )  # (Nevent, Nadcs, Nchannel, Nbaseline_pts)
+
+        # Move Nevent next to the sample axis and merge them:
+        # (Nevent, Nadcs, Nchannel, Nbaseline_pts) -> (Nadcs, Nchannel, Nevent, Nbaseline_pts)
+        #  -> (Nadcs, Nchannel, Nevent*Nbaseline_pts)
+        pooled = np.moveaxis(baseline_pts, 0, -2)
+        pooled = pooled.reshape(*pooled.shape[:-2], -1)
+
+        # Compute the number of points to keep after trimming the highest values
+        n_pts = pooled.shape[-1]
+        n_keep = int(np.ceil(n_pts * (1 - trim_frac)))
+
+        # Compute the mean of the lowest values to get the baseline
+        part = np.partition(pooled, n_keep - 1, axis=-1)[..., :n_keep]
+        self.baselines = np.median(part, axis=-1)  # (Nadcs, Nchannel)
+        
 
 
     
@@ -516,7 +549,7 @@ class calibWvfms:
         print(f'The output path was updated to {self.output_path}')
         return None
     
-    def compute_fingerplots(self, Nevent=None, adcs=None, chans=None, int_window=[0, -1], Nbins=150, mode='integral', cut=None, minWidth=5, nSig=5, verbose = False):
+    def compute_fingerplots(self, Nevent=None, adcs=None, chans=None, int_window=[0, -1], Nbins=150, mode='integral', cut=None, baseline_correction=False, minWidth=5, nSig=5, verbose = False):
         '''
         Plot the distribution of integrated waveforms, so called fingers plot
 
@@ -534,7 +567,8 @@ class calibWvfms:
             cut (str)                       : Cut(s) applied to the select event
                 - None (default)       : No cut
                 - 1peak                : Only select event with one peak in 'int_window' 
-                - 15ticks              : Only select peak at least 15 ticks away from neighbouring peaks   
+                - 15ticks              : Only select peak at least 15 ticks away from neighbouring peaks 
+            baseline_correction (bool) : Substract the baseline from the waveform (default: False)
         '''
 
         # Cut variable
@@ -566,7 +600,11 @@ class calibWvfms:
         print(f"DEBUG: ADCs: {adcs}")
         print(f"DEBUG: Chans: {chans}")
 
-        
+        if (baseline_correction==True):
+            self._get_baselines(int_window)
+        else:
+            self.baselines = np.zeros((self.Nadc, self.Nchan))
+
         if (mode == 'integral'):
             for i_adc in adcs:
                 for j_chan in chans:
@@ -576,10 +614,10 @@ class calibWvfms:
                             self.findPeak_wvfms(k_event, i_adc, j_chan, minWidth=minWidth, verbose=verbose, xlim=int_window)
                             event_mask[k_event] = self.Npeaks[k_event][i_adc][j_chan]==1
                         event_mask = np.where(event_mask)[0]
-                        intsWvfm = np.sum(self.light_wvfms[event_mask, i_adc, j_chan, int_window[0]:int_window[1]], axis=-1)
+                        intsWvfm = np.sum(self.light_wvfms[event_mask, i_adc, j_chan, int_window[0]:int_window[1]]-self.baselines[i_adc, j_chan], axis=-1)
 
                     else:
-                        intsWvfm = np.sum(self.light_wvfms[:Nevent+100, i_adc, j_chan, int_window[0]:int_window[1]], axis=-1)
+                        intsWvfm = np.sum(self.light_wvfms[:Nevent+100, i_adc, j_chan, int_window[0]:int_window[1]]-self.baselines[i_adc, j_chan], axis=-1)
                         print(f"shape: {intsWvfm.shape}")#, values: {intsWvfm}")
                         Int_extremValues = check_for_extrem_values(intsWvfm, nSig=nSig)
                         self.extrem_Int_val[i_adc][j_chan] = Int_extremValues
@@ -822,7 +860,7 @@ class calibWvfms:
 
         return None  
 
-    def compute_mean_integrals(self, Nevent=None, adcs=None, chans=None, int_window=[0, -1], Nbins=150, mode='integral', cut='1peak', minWidth=5, nSig=5, verbose=False):
+    def compute_mean_integrals(self, Nevent=None, adcs=None, chans=None, int_window=[0, -1], Nbins=150, mode='integral', cut='1peak', baseline_correction=False, minWidth=5, nSig=5, verbose=False):
         
         if Nevent is None or Nevent > self.Nevents:
             Nevent = self.Nevents
@@ -848,8 +886,8 @@ class calibWvfms:
 
         for i_adc in adcs:
             for j_chan in chans:
-                if self.fingerplots[i_adc][j_chan] is None:
-                    self.compute_fingerplots(Nevent=self.Nevents, adcs=[i_adc], chans=[j_chan], int_window=int_window, Nbins=150, mode=mode, cut=cut, minWidth=minWidth, nSig=nSig, verbose = False)
+                # if self.fingerplots[i_adc][j_chan] is None:
+                self.compute_fingerplots(Nevent=self.Nevents, adcs=[i_adc], chans=[j_chan], int_window=int_window, Nbins=150, mode=mode, cut=cut, baseline_correction=baseline_correction, minWidth=minWidth, nSig=nSig, verbose = False)
                 
                 counts, bin_edges = self.fingerplots[i_adc][j_chan]
                 # Calculate midpoints of each bin
