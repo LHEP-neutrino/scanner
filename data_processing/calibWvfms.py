@@ -12,32 +12,6 @@ from datetime import datetime
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 
-# Setup module-level logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)  # Default level
-
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-def set_log_level(level_name: str):
-    """
-    Change log level at runtime.
-
-        input: level_name, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-    
-    """
-    level = getattr(logging, level_name.upper(), None)
-    if isinstance(level, int):
-        logger.setLevel(level)
-        for handler in logger.handlers:
-            handler.setLevel(level)
-        logger.info(f"Log level changed to {level_name.upper()}")
-    else:
-        logger.error(f"Invalid log level: {level_name}")
-
 
 class calibWvfms:
     ''' 
@@ -122,9 +96,9 @@ class calibWvfms:
 
 
 
-        logger.info(f'Processing file {filedir+filename}')
-        logger.info(f'The output path is set to {self.output_path}')
-        logger.info(f"Number of events in the selection: {self.Nevents}")
+        print(f'Processing file {os.path.join(self.filedir, self.filename)}')
+        print(f'The output path is set to {self.output_path}')
+        print(f"Number of events in the selection: {self.Nevents}")
     
     def load_file(self, filedir, filename):
         # Open files
@@ -139,8 +113,8 @@ class calibWvfms:
 
         self.Nevents, self.Nadc, self.Nchan, self.Ntick = self.light_wvfms.shape
 
-        logger.info(f'A new file was loaded: {filedir+filename}')
-        logger.info(f"Number of events in the file: {self.Nevents}")
+        print(f'A new file was loaded: {os.path.join(self.filedir, self.filename)}')
+        print(f"Number of events in the file: {self.Nevents}")
 
         return None
 
@@ -275,7 +249,7 @@ class calibWvfms:
         elif isinstance(output, str):
             fig_wvfm.savefig(output)
         elif output is not None: 
-            logger.error("Invalid 'output' input, should be None, str or PdfPages")
+            print("ERROR: Invalid 'output' input, should be None, str or PdfPages")
         if show_plot == False:
             plt.close()
 
@@ -321,7 +295,7 @@ class calibWvfms:
             elif (isinstance(events, list)):
                 events = np.array(events)
             else:
-                logger.error("Invalid 'events' input, should be None int or list")
+                print("ERROR: Invalid 'events' input, should be None int or list")
         
         if adcs is None:
             adcs = np.arange(0, self.Nadc)
@@ -330,7 +304,7 @@ class calibWvfms:
         elif (isinstance(adcs, list)):
             adcs = np.array(adcs)
         else:
-            logger.error("Invalid 'adcs' input, should be None, int or list")
+            print("ERROR: Invalid 'adcs' input, should be None, int or list")
 
         if chans is None:
             chans = np.arange(0, self.Nchan)
@@ -339,7 +313,7 @@ class calibWvfms:
         elif (isinstance(chans, list)):
             chans = np.array(chans)
         else:
-            logger.error("Invalid 'chans' input, should be None, int or list")
+            print("ERROR: Invalid 'chans' input, should be None, int or list")
         print(events, adcs, chans)
 
         for i_event in events:
@@ -448,7 +422,7 @@ class calibWvfms:
             elif (isinstance(events, (list, tuple)) and len(events) == 2):
                 events = np.array(events)
             else:
-                logger.error("Invalid 'events' input, should be None, int, list or tuple")
+                print("ERROR: Invalid 'events' input, should be None, int, list or tuple")
 
         if adcs is None:
             adcs = np.arange(0, self.Nadc)
@@ -458,7 +432,7 @@ class calibWvfms:
             elif (isinstance(adcs, list)):
                 adcs = np.array(adcs)
             else:
-                logger.error("Invalid 'adcs' input, should be None, int or ArrayLike")
+                print("ERROR: Invalid 'adcs' input, should be None, int or ArrayLike")
 
 
         if chans is None:
@@ -508,20 +482,20 @@ class calibWvfms:
             elif (isinstance(adcs, list)):
                 adcs = np.array(adcs)
             else:
-                logger.error("Invalid 'adcs' input, should be None, int or list")
+                print("ERROR: Invalid 'adcs' input, should be None, int or list")
 
         if chans is None:
             chans = np.arange(0, self.Nchan)
         elif (isinstance(chans, list)):
             chans = np.array(chans)
         else:
-            logger.error("Invalid 'chans' input, should be None or list")
+            print("ERROR: Invalid 'chans' input, should be None or list")
 
         output_pdf = os.path.join(self.output_path, inputFile_name)
         os.makedirs(output_pdf, exist_ok=True)
 
         output_path = os.path.join(self.output_path, inputFile_name)
-        logger.info(f'The summary pdf will be created in the folder {output_path}')
+        print(f'The summary pdf will be created in the folder {output_path}')
 
         for j_adc in adcs:
             output_path_adc = os.path.join(output_path, f'adc{j_adc}')
@@ -533,13 +507,13 @@ class calibWvfms:
                 for k_chan in chans:
                     self.plot_wvfm(event, j_adc, k_chan, peakFinder=True, minWidth=peakFinder_minWidth, output=summary_pdf, show_plot=False, cut_offset=cut_offset, min_peak_distance=min_peak_distance)
     
-            logger.info(f'The summary pdf of adc {j_adc} was created')
+            print(f'The summary pdf of adc {j_adc} was created')
         
         return None
     
     def set_output_path(self, output_path):
         self.output_path = os.path.abspath(output_path)
-        logger.info(f'The output path was updated to {self.output_path}')
+        print(f'The output path was updated to {self.output_path}')
         return None
     
     def compute_fingerplots(self, Nevent=None, adcs=None, chans=None, int_window=[0, -1], Nbins=150, mode='integral', cut=None, minWidth=5, nSig=5, verbose = False):
@@ -564,7 +538,7 @@ class calibWvfms:
         '''
 
         # Cut variable
-        logger.debug(f"Computing the fingerplots of the file {self.filename} with {Nevent} events")
+        print(f"DEBUG: Computing the fingerplots of the file {self.filename} with {Nevent} events")
 
         if adcs is None:
             adcs = np.arange(0, self.Nadc)
@@ -574,7 +548,7 @@ class calibWvfms:
             elif (isinstance(adcs, list)):
                 adcs = np.array(adcs)
             else:
-                logger.error("Invalid 'adcs' input, should be None, int or list")
+                print("ERROR: Invalid 'adcs' input, should be None, int or list")
 
         if chans is None:
             chans = np.arange(0, self.Nchan)
@@ -583,14 +557,14 @@ class calibWvfms:
         elif (isinstance(chans, int)):
             chans = np.array([chans])
         else:
-            logger.error("Invalid 'chans' input, should be None, int or list")
+            print("ERROR: Invalid 'chans' input, should be None, int or list")
 
         if Nevent is None or Nevent > self.light_wvfms.shape[0]:
             Nevent = self.light_wvfms.shape[0]
 
         
-        logger.debug(f"ADCs: {adcs}")
-        logger.debug(f"Chans: {chans}")
+        print(f"DEBUG: ADCs: {adcs}")
+        print(f"DEBUG: Chans: {chans}")
 
         
         if (mode == 'integral'):
@@ -646,7 +620,7 @@ class calibWvfms:
 
         #             self.fingerplots[i_adc][j_chan] = np.histogram(ampsWvfm, bins=Nbins)
 
-        logger.info(f'The finger plots were computed with {Nevent} events in mode "{mode}"')
+        print(f'The finger plots were computed with {Nevent} events in mode "{mode}"')
 
         return None
     
@@ -711,7 +685,7 @@ class calibWvfms:
             fit_bounds[0][i_peak*self.Nparams_peak+5] = fit_p0[i_peak*self.Nparams_peak+5]*0.8
             fit_bounds[1][i_peak*self.Nparams_peak+5] = fit_p0[i_peak*self.Nparams_peak+5]*5+1 # +1 to avoid both bound being 0, if fit_p0[...] is 0
 
-            # logger.debug(f" prop: {properties['left_ips'][0]}")
+            # print(f"DEBUG:  prop: {properties['left_ips'][0]}")
             if properties['left_ips'][0] > 0 and counts[int(properties['left_ips'][0]-1)]>0:
                     fit_lim_min = properties['left_ips'][0]-1
             else:
@@ -732,7 +706,7 @@ class calibWvfms:
         Args:
             
         '''
-        logger.debug(f"Fitting the fingerplots of the file {self.filename}")
+        print(f"DEBUG: Fitting the fingerplots of the file {self.filename}")
         
         if adcs is None:
             adcs = np.arange(0, self.Nadc)
@@ -742,7 +716,7 @@ class calibWvfms:
             elif (isinstance(adcs, list)):
                 adcs = np.array(adcs)
             else:
-                logger.error("Invalid 'adcs' input, should be None, int or list")
+                print("ERROR: Invalid 'adcs' input, should be None, int or list")
 
         if chans is None:
             chans = np.arange(0, self.Nchan)
@@ -751,10 +725,10 @@ class calibWvfms:
         elif (isinstance(chans, list)):
             chans = np.array(chans)
         else:
-            logger.error("Invalid 'chans' input, should be None, int or list")
+            print("ERROR: Invalid 'chans' input, should be None, int or list")
 
-        logger.debug(f"ADCs: {adcs}")
-        logger.debug(f"Chans: {chans}")
+        print(f"DEBUG: ADCs: {adcs}")
+        print(f"DEBUG: Chans: {chans}")
 
         for i_adc in adcs:
             for j_chan in chans:
@@ -765,12 +739,12 @@ class calibWvfms:
                 width = bins[1] - bins[0]
                 
                 # Compute p0
-                logger.debug(f"Compute fingerplots p0 of ADC {i_adc}, chan. {j_chan}")
+                print(f"DEBUG: Compute fingerplots p0 of ADC {i_adc}, chan. {j_chan}")
                 try:
                     fit_p0, fit_bounds, fit_lim = self._compute_fingerplots_p0(counts=counts, bin_centers=bin_centers,
                                                                             width=width)
                 except Exception as e:
-                    logger.warning(f"No initial guess was found for fingerplot of ADC {i_adc}, chan. {j_chan}, the fitting procedure was aborded: {e}")
+                    print(f"WARNING: No initial guess was found for fingerplot of ADC {i_adc}, chan. {j_chan}, the fitting procedure was aborded: {e}")
                     self.fit_status[i_adc][j_chan] = 2
                     continue
 
@@ -794,10 +768,10 @@ class calibWvfms:
                     chi_squared = np.sum(((counts[fit_lim[0]:fit_lim[1]] - multi_gaussian(bin_centers[fit_lim[0]:fit_lim[1]], *self.fitted_params[i_adc][j_chan]))**2 / sigma))
                     dof = len(counts[fit_lim[0]:fit_lim[1]]) - len(self.fitted_params[i_adc][j_chan])  # degrees of freedom
                     # print(f'dof: {len(counts[fit_lim[0]:fit_lim[1]])} and {len(self.fitted_params[i_adc][j_chan])}, fit_lim: {fit_lim}')
-                    logger.debug(f"Fingerplots of ADC {i_adc}, chan. {j_chan} fitted")
+                    print(f"DEBUG: Fingerplots of ADC {i_adc}, chan. {j_chan} fitted")
                     self.fit_status[i_adc][j_chan] = 0
                 except Exception as e:
-                    logger.warning(f"The fingerplot were not fitted for ADC {i_adc}, chan. {j_chan}, the saved parmaters are the p0s: {e}")
+                    print(f"WARNING: The fingerplot were not fitted for ADC {i_adc}, chan. {j_chan}, the saved parmaters are the p0s: {e}")
                     self.fitted_params[i_adc][j_chan] = fit_p0
                     chi_squared = 0
                     dof = 0
@@ -806,7 +780,7 @@ class calibWvfms:
 
                 self.reduced_chi_squared[i_adc][j_chan] = np.array([chi_squared, dof])
 
-        logger.info(f"The fingerplots of the file {self.filename} were fitted.")
+        print(f"The fingerplots of the file {self.filename} were fitted.")
         
 
         return None
@@ -820,7 +794,7 @@ class calibWvfms:
             elif (isinstance(adcs, list)):
                 adcs = np.array(adcs)
             else:
-                logger.error("Invalid 'adcs' input, should be None, int or list")
+                print("ERROR: Invalid 'adcs' input, should be None, int or list")
 
         if chans is None:
             chans = np.arange(0, self.Nchan)
@@ -829,7 +803,7 @@ class calibWvfms:
         elif (isinstance(chans, list)):
             chans = np.array(chans)
         else:
-            logger.error("Invalid 'chans' input, should be None, int or list")
+            print("ERROR: Invalid 'chans' input, should be None, int or list")
 
 
         for i_adc in adcs:
@@ -844,7 +818,7 @@ class calibWvfms:
                         self.gains[i_adc][j_chan] = abs(np.mean(peak_diffs[1:]))
                         self.gains_std[i_adc][j_chan] = np.std(peak_diffs[1:])
                 else:
-                    logger.debug(f'Skipped ADC {i_adc}, chan. {j_chan} due to failed fitting')
+                    print(f"DEBUG: Skipped ADC {i_adc}, chan. {j_chan} due to failed fitting")
 
         return None  
 
@@ -861,7 +835,7 @@ class calibWvfms:
             elif (isinstance(adcs, list)):
                 adcs = np.array(adcs)
             else:
-                logger.error("Invalid 'adcs' input, should be None, int or list")
+                print("ERROR: Invalid 'adcs' input, should be None, int or list")
 
         if chans is None:
             chans = np.arange(0, self.Nchan)
@@ -870,7 +844,7 @@ class calibWvfms:
         elif (isinstance(chans, list)):
             chans = np.array(chans)
         else:
-            logger.error("Invalid 'chans' input, should be None, int or list")
+            print("ERROR: Invalid 'chans' input, should be None, int or list")
 
         for i_adc in adcs:
             for j_chan in chans:
@@ -1027,7 +1001,7 @@ def plot_fingerplot(counts, bins, title=None, show_plot=False, output=None, plot
         Return:
             None
         """
-        logger.debug(f'Plotting the finger plot')
+        print(f'DEBUG: Plotting the finger plot')
 
         fig = plt.figure(figsize=[10, 6])
         ax = fig.subplots()
@@ -1114,10 +1088,10 @@ def plot_fingerplot(counts, bins, title=None, show_plot=False, output=None, plot
                 output_plot = os.path.join(output ,f'{time_str}_fingerplot.png')
         
             fig.savefig(output_plot)
-            logger.debug(f'File {os.path.basename(output_plot)} saved in {os.path.dirname(output_plot)}')
+            print(f'DEBUG: File {os.path.basename(output_plot)} saved in {os.path.dirname(output_plot)}')
 
         elif output is not None: 
-            logger.error("Invalid 'output' input, should be None, str or PdfPages")
+            print("ERROR: Invalid 'output' input, should be None, str or PdfPages")
 
         if show_plot == False:
             plt.close()

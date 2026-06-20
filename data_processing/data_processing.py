@@ -68,6 +68,7 @@ def _flow_file(raw_file,flow_file):
         command = ["h5flow", "-c", "/home/lhep/scanner/ndlar_flow/yamls/TUNE_flow/workflows/light/light_event_building_scanner.yaml", "-i", raw_file, "-o", flow_file]
         
         result = subprocess.run(command,
+                                cwd="/home/lhep/scanner/ndlar_flow", #Set working directory to where the h5flow command is available
                                 capture_output=True,   # Capture stdout and stderr
                                 text=True,             # Decode output to string
                                 check=True)            # Raise an exception if the command fails
