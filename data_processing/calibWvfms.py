@@ -129,8 +129,8 @@ class calibWvfms:
             sig (list):         List of two integers defining the signal window [start, end]
             trim_frac (float):  Fraction of the highest values to trim before computing the median baseline (default: 0.5)
         '''
-        print(type(self.light_wvfms))
-        print(self.light_wvfms.shape, self.light_wvfms.dtype)
+        # print(type(self.light_wvfms))
+        # print(self.light_wvfms.shape, self.light_wvfms.dtype)
         baseline_pts = np.concatenate(
             (self.light_wvfms[..., :sig[0]], self.light_wvfms[..., sig[1]:]),
             axis=-1
@@ -572,7 +572,7 @@ class calibWvfms:
         '''
 
         # Cut variable
-        print(f"DEBUG: Computing the fingerplots of the file {self.filename} with {Nevent} events")
+        # print(f"DEBUG: Computing the fingerplots of the file {self.filename} with {Nevent} events")
 
         if adcs is None:
             adcs = np.arange(0, self.Nadc)
@@ -597,8 +597,8 @@ class calibWvfms:
             Nevent = self.light_wvfms.shape[0]
 
         
-        print(f"DEBUG: ADCs: {adcs}")
-        print(f"DEBUG: Chans: {chans}")
+        # print(f"DEBUG: ADCs: {adcs}")
+        # print(f"DEBUG: Chans: {chans}")
 
         if (baseline_correction==True):
             self._get_baselines(int_window)
@@ -893,8 +893,11 @@ class calibWvfms:
                 # Calculate midpoints of each bin
                 bin_midpoints = 0.5 * (bin_edges[1:] + bin_edges[:-1])
 
-                # 3. Calculate the estimated mean
-                self.mean_integrals[i_adc][j_chan] = np.average(bin_midpoints, weights=counts)
+                # Calculate the estimated mean 
+                if np.sum(counts) == 0:
+                    self.mean_integrals[i_adc][j_chan] = 0
+                else:
+                    self.mean_integrals[i_adc][j_chan] = np.average(bin_midpoints, weights=counts)
 
         return None
 
