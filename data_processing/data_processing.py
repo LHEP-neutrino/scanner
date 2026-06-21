@@ -6,6 +6,7 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.patches as patches
 import argparse
 import subprocess
 import h5py
@@ -186,53 +187,153 @@ def _data_process(summary_file, verbose=False):
     with open(summary_file, 'w', encoding='utf-8') as f:
         json.dump(summary_data, f, indent=4, ensure_ascii=False)
 
-def _2d_plots(start, end, N_steps, metrics, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]", colorbar_label="Metric Value", verbose=False):
+def _2d_plots(x, y, val, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]",
+              colorbar_label="Metric Value", x_lim=None, y_lim=None, equal_aspect=True, verbose=False):
     """
-    Create 2D plots of the metrics.
+    Create a 2D histogram/heatmap of scan metrics, automatically inferring
+    bin edges from the unique scan positions.
 
     Args:
-        start (list): The starting position of the scan [x, y].
-        end (list): The ending position of the scan [x, y].
-        N_steps (list): The number of steps in x and y directions [N_x, N_y].
-        metrics (numpy.ndarray): A dictionary containing the computed metrics for each scan point.
+        x (array-like): X position of each scan point.
+        y (array-like): Y position of each scan point.
+        val (array-like): Metric value at each scan point (same length as x, y).
         title (str): The title of the plot.
         xlabel (str): The label for the x-axis.
         ylabel (str): The label for the y-axis.
         colorbar_label (str): The label for the colorbar.
+        x_lim (tuple): Optional (xmin, xmax) to set the x-axis limits.
+        y_lim (tuple): Optional (ymin, ymax) to set the y-axis limits.
+        verbose (bool): If True, print edges and binned grid.
     """
-    x_edges = np.linspace(start[0], end[0], N_steps[0]+1)
-    y_edges = np.linspace(start[1], end[1], N_steps[1]+1)
-    bin_2d = metrics
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    val = np.asarray(val, dtype=float)
+
+    # Unique sorted positions along each axis -> these are the bin centers
+    x_unique = np.unique(x)
+    y_unique = np.unique(y)
+
+    # Bin edges = midpoints between neighboring unique centers,
+    # extrapolated by half a step on each end.
+    def edges_from_centers(centers):
+        if len(centers) == 1:
+            # Single point: just make up a unit-width bin around it
+            c = centers[0]
+            return np.array([c - 0.5, c + 0.5])
+        mids = (centers[:-1] + centers[1:]) / 2
+        first_half_step = mids[0] - centers[0]
+        last_half_step = centers[-1] - mids[-1]
+        return np.concatenate(([centers[0] - first_half_step], mids, [centers[-1] + last_half_step]))
+
+    x_edges = edges_from_centers(x_unique)
+    y_edges = edges_from_centers(y_unique)
+
+    # Map each scan point to its grid index
+    x_idx = np.searchsorted(x_unique, x)
+    y_idx = np.searchsorted(y_unique, y)
+
+    bin_2d = np.full((len(y_unique), len(x_unique)), np.nan)
+    bin_2d[y_idx, x_idx] = val
 
     if verbose:
         print(f"X edges: {x_edges}")
         print(f"Y edges: {y_edges}")
-        print(f"2D bins: {bin_2d}")
-
+        print(f"2D bins:\n{bin_2d}")
 
     fig, ax = plt.subplots()
     mesh = ax.pcolormesh(x_edges, y_edges, bin_2d)
-    # Add text in the center of each 2D bin
-    for i in range(len(y_edges) - 1):
-        for j in range(len(x_edges) - 1):
-            x_center = (x_edges[j] + x_edges[j+1]) / 2
-            y_center = (y_edges[i] + y_edges[i+1]) / 2
-            ax.text(x_center, y_center, str(f"{bin_2d[i, j]:.2f}"),
-                    ha='center', va='center', fontsize=9, color='white', fontweight='bold')
-            
+
+    # Add text in the center of each 2D bin (skip empty/NaN cells)
+    for i in range(len(y_unique)):
+        for j in range(len(x_unique)):
+            if not np.isnan(bin_2d[i, j]):
+                ax.text(x_unique[j], y_unique[i], f"{bin_2d[i, j]:.2f}",
+                        ha='center', va='center', fontsize=9, color='white', fontweight='bold')
+
     fig.colorbar(mesh, ax=ax, label=colorbar_label)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    plt.show()
-    # print(f"Plotting and saving results for scan: {scan_info.get('scan_name', 'Unknown')}")
+
+    if equal_aspect:
+        ax.set_aspect('equal', adjustable='box')
+
+    def centers_to_ticks(centers, max_ticks=10):
+        n = len(centers)
+        if n <= max_ticks:
+            return centers
+        idx = np.linspace(0, n - 1, max_ticks).round().astype(int)
+        idx = np.unique(idx)
+        return centers[idx]
     
-def _plot_and_save(summary_file, verbose=False):
+    pcb_height = abs(y_lim[1] - y_lim[0]) * 0.03
+
+    if x_lim is not None:
+        ax.set_xlim(x_lim)
+        ax.set_xticks([x_lim[0],*centers_to_ticks(x_unique, max_ticks=10), x_lim[1]])
+    if y_lim is not None:
+        y_lim_wPCB = (y_lim[0]-pcb_height, y_lim[1])
+        ax.set_ylim(y_lim_wPCB)
+        ax.set_yticks([y_lim[0],*centers_to_ticks(y_unique, max_ticks=10), y_lim[1]])
+
+    # Red box above the plot area, spanning x_lim, from y_lim[1] up by 10% of the y range
+    if x_lim is not None and y_lim is not None:
+        box = patches.Rectangle(
+            (x_lim[0], y_lim[0]-pcb_height),  # bottom left corner
+            x_lim[1] - x_lim[0],
+            pcb_height,
+            linewidth=1, edgecolor='black', facecolor='green', alpha=0.8, clip_on=False
+        )
+        ax.add_patch(box)
+        ax.text(
+            (x_lim[0] + x_lim[1]) / 2, y_lim[0] - pcb_height*0.6,
+            "COLD PCB",
+            ha='center', va='center', fontsize=8, color='darkorange', fontweight='bold',
+            clip_on=False
+        )
+
+    plt.show()
+
+    return fig, ax
+
+def _extract_integral_data(scan_summary):
+    """
+    Extract LT_x, LT_y, and summed metric (indices 0-5 of mean_integrals)
+    for each scan point in scan_summary.
+
+    Args:
+        scan_summary (dict): dict with keys "N_scan_points", "scan_pt_0", "scan_pt_1", ...
+
+    Returns:
+        x (np.ndarray): LT_x positions
+        y (np.ndarray): LT_y positions
+        val (np.ndarray): summed metric per scan point
+    """
+    n_points = scan_summary["N_scan_points"]
+
+    x_list = []
+    y_list = []
+    val_list = []
+
+    for i in range(n_points):
+        pt = scan_summary[f"scan_pt_{i}"]
+
+        x_list.append(pt["LT_x"])
+        y_list.append(pt["LT_y"])
+
+        mean_integrals = pt["metrics"]["mean_integrals"]["0"]
+        total = sum(mean_integrals[str(n)] for n in range(6))
+        val_list.append(total)
+
+    return np.array(x_list), np.array(y_list), np.array(val_list)
+    
+def _plot_and_save(summary_file, output=None, verbose=False):
     """
     Plot the calculated metrics and save the results to files.
     
     Args:
         summary_file (str): The path to the summary JSON file containing the metrics.
+        output (str): The path to the output folder for the plot (default: Same folder as summary file).
         verbose (bool): Whether to print verbose output.
     """
     # Read the summary file and extract the scan info and metrics
@@ -240,17 +341,25 @@ def _plot_and_save(summary_file, verbose=False):
     with open(summary_file, 'r') as f:
         summary_data = json.load(f)
         scan_summary = summary_data.get("scan_summary", {})
-        # scan_info = summary_data.get("scan_info", {})
+        scan_name = summary_data.get("scan_name", {})
 
     # Extract necessary information for plotting
     start_point = scan_summary.get("start_pos", [0, 0])
     end_point = scan_summary.get("end_pos", [296, 461])
-    N_steps = scan_summary.get("N_steps", None)
-    integrals = scan_summary.get("metrics", {}).get("mean_integrals", {})
-    
-    if N_steps is not None:
-        _2d_plots(start_point, end_point, N_steps, integrals, colorbar_label='Pulse Integral [ADC unit]', verbose=verbose)
+    x_lim = (min(start_point[0], end_point[0]), max(start_point[0], end_point[0]))
+    y_lim = (min(start_point[1], end_point[1]), max(start_point[1], end_point[1]))
 
+    integrals_val_plot = _extract_integral_data(scan_summary)
+    
+    fig, axes = _2d_plots(*integrals_val_plot, x_lim=x_lim, y_lim=y_lim,title=f"{scan_name} - Sum of Integrals", xlabel='X Position [mm]', ylabel='Y Position [mm]', colorbar_label='Sum of Integrals [ADC unit]', verbose=verbose)
+
+    if output:
+        figure_filename = os.path.join(output, os.path.basename(summary_file).replace("_summary.json", "_sumIntegrals_plot.png"))
+    else:
+        figure_filename = summary_file.replace("_summary.json", "_sumIntegrals_plot.png")
+
+    fig.savefig(figure_filename)
+    print(f"Plot saved to: {figure_filename}")
 
 def main():
     parser = argparse.ArgumentParser(description='Process the scanner data from a summary file and plot the results.')
@@ -259,6 +368,11 @@ def main():
     parser.add_argument('-v', '--verbose',
                         action='store_true',       # True if flag is present, False otherwise
                         help='Enable verbose output')
+    
+    # Optional flag: -o / --output
+    parser.add_argument('-o', '--output',
+                        type=str,
+                        help='Path to the output folder for the plot (default: Same folder as summary file)')
 
     # Positional argument: required file path
     parser.add_argument('file_path',
@@ -274,6 +388,11 @@ def main():
         print(f"Processing: {args.file_path}")
 
     summary_file_path = args.file_path
+
+    if args.output:
+        if not os.path.isdir(args.output):
+            print(f"Output path is not a valid directory: {args.output}")
+            sys.exit(1)
     
     # #DEBUG
     # summary_file_path = "/Users/nsallin/develop/scanner/data/scanner_summary/20260522_1811_4-09_summary.json"  
@@ -282,13 +401,12 @@ def main():
         sys.exit(1)
 
     # Process the summary file
-    _data_process(summary_file_path, verbose=args.verbose)
+    # _data_process(summary_file_path, verbose=args.verbose)
     
     print("File updated successfully.")
 
     # # Plot and store the results
-    # _plot_and_save(summary_file_path, verbose=args.verbose)
-    print("TODO: Plotting is not implemented yet.")
+    _plot_and_save(summary_file_path, output=args.output, verbose=args.verbose)
 
 if __name__ == "__main__":
     main()
