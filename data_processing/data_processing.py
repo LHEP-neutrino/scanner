@@ -15,7 +15,7 @@ from calibWvfms import calibWvfms
 
 # Logging is done automatically by systemd, it can be viewed with `journalctl -u data-processing@*`
 
-ADCS =[0]
+ADC = 0
 
 CHANS = [0,1,2,3,4,5,6]
 
@@ -111,45 +111,37 @@ def _compute_metrics(flowed_file, verbose=False, wvfmExamples=None):
     # Load calibration class
     wvfms = calibWvfms(filedir = os.path.dirname(flowed_file), filename = os.path.basename(flowed_file), output_path=os.path.dirname(flowed_file))
                 
-    wvfms.compute_mean_integrals(Nevent=9000, adcs=ADCS, chans=CHANS, int_window=SIGNAL_WINDOW, cut = '1peak', baseline_correction=True, minWidth=3, verbose=False)
+    wvfms.compute_mean_integrals(Nevent=9000, adcs=[ADC], chans=CHANS, int_window=SIGNAL_WINDOW, cut = '1peak', baseline_correction=True, minWidth=3, verbose=False)
 
     metrics = {}
     metrics["mean_integrals"] = {}
-    for adc in ADCS:
-        metrics["mean_integrals"][adc] = {}
-        for chan in CHANS:
-            # print(f"ADC: {adc}, CHAN: {chan}, Mean Integral: {wvfms.mean_integrals[adc][chan]}")
-            metrics["mean_integrals"][adc][chan] = wvfms.mean_integrals[adc][chan]
+    metrics["mean_integrals"][ADC] = {}
+    for chan in CHANS:
+        # print(f"ADC: {adc}, CHAN: {chan}, Mean Integral: {wvfms.mean_integrals[adc][chan]}")
+        metrics["mean_integrals"][ADC][chan] = wvfms.mean_integrals[ADC][chan]
     
     return metrics
 
-def _data_process(summary_file, verbose=False):
+def _data_process(summary_file, verbose=0):
     """
     Process the scanner data files to compute metrics for plotting.
 
     1. Read the summary file, get the raw data files path
 
-    2. Flow the data, store them in a 
+    2. Flow the data, save the flowed file path in the summary for reference
     
-    3. Exploit the data
-    
-    Return the variables necessary for plotting.
+    3. Compute the metrics and save them in the summary file
 
     TODO: Step 2 and 3 are designed to handle one file at a time, in the optic to parallelize the processing in the future. 
 
     Args:
         summary_file (str): The path to the summary JSON file.
-            verbose (bool): Whether to print verbose output.
-    Returns:
-        scan_summary (dict): A dictionary containing the scan summary information.
-        plotting_info (dict): A dictionary containing scan information for plotting.
+            verbose (int): The level of verbosity for output messages.
     """
     # Initialize variables
     plotting_info = {}
 
     # Read the summary file and extract the data files and scan info
-    print(f"Processing summary file: {summary_file}")
-
     with open(summary_file, 'r') as f:
         summary_data = json.load(f)
         scan_summary = summary_data.get("scan_summary", {})
@@ -188,10 +180,9 @@ def _data_process(summary_file, verbose=False):
         json.dump(summary_data, f, indent=4, ensure_ascii=False)
 
 def _2d_plots(x, y, val, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]",
-              colorbar_label="Metric Value", x_lim=None, y_lim=None, equal_aspect=True, verbose=False):
+              colorbar_label="Metric Value", x_lim=None, y_lim=None, equal_aspect=True, max_xticks = 10, max_yticks=15, max_xcell_label=10, z_scale=1):
     """
-    Create a 2D histogram/heatmap of scan metrics, automatically inferring
-    bin edges from the unique scan positions.
+    Create a 2D histogram/heatmap of scan metrics, automatically inferring bin edges from the unique scan positions.
 
     Args:
         x (array-like): X position of each scan point.
@@ -203,7 +194,10 @@ def _2d_plots(x, y, val, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]",
         colorbar_label (str): The label for the colorbar.
         x_lim (tuple): Optional (xmin, xmax) to set the x-axis limits.
         y_lim (tuple): Optional (ymin, ymax) to set the y-axis limits.
-        verbose (bool): If True, print edges and binned grid.
+        max_xticks (int): Maximum number of ticks on the x-axis.
+        max_yticks (int): Maximum number of ticks on the y-axis.
+        max_xcell_label (int): Maximum number of x-cell when labels are displayed.
+        z_scale (float): Scale factor for the z-axis.
     """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
@@ -232,23 +226,21 @@ def _2d_plots(x, y, val, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]",
     x_idx = np.searchsorted(x_unique, x)
     y_idx = np.searchsorted(y_unique, y)
 
+    # Get the bin values, np.nan for empty bins
     bin_2d = np.full((len(y_unique), len(x_unique)), np.nan)
-    bin_2d[y_idx, x_idx] = val
+    bin_2d[y_idx, x_idx] = val*z_scale
 
-    if verbose:
-        print(f"X edges: {x_edges}")
-        print(f"Y edges: {y_edges}")
-        print(f"2D bins:\n{bin_2d}")
-
+    # Create the 2D plot
     fig, ax = plt.subplots()
     mesh = ax.pcolormesh(x_edges, y_edges, bin_2d)
 
     # Add text in the center of each 2D bin (skip empty/NaN cells)
-    for i in range(len(y_unique)):
-        for j in range(len(x_unique)):
-            if not np.isnan(bin_2d[i, j]):
-                ax.text(x_unique[j], y_unique[i], f"{bin_2d[i, j]:.2f}",
-                        ha='center', va='center', fontsize=9, color='white', fontweight='bold')
+    if len(x_unique) <= max_xcell_label:
+        for i in range(len(y_unique)):
+            for j in range(len(x_unique)):
+                if not np.isnan(bin_2d[i, j]):
+                    ax.text(x_unique[j], y_unique[i], f"{bin_2d[i, j]:.2f}",
+                            ha='center', va='center', fontsize=6, color='white', fontweight='bold')
 
     fig.colorbar(mesh, ax=ax, label=colorbar_label)
     ax.set_xlabel(xlabel)
@@ -259,6 +251,15 @@ def _2d_plots(x, y, val, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]",
         ax.set_aspect('equal', adjustable='box')
 
     def centers_to_ticks(centers, max_ticks=10):
+        """
+        Compute the tick positions for the given centers, limiting to max_ticks.
+
+        Args:
+            centers (array-like): The unique center positions along an axis.
+            max_ticks (int): The maximum number of ticks to display.
+        Returns:
+            ticks (array-like): The tick positions to use for the axis.
+        """
         n = len(centers)
         if n <= max_ticks:
             return centers
@@ -266,17 +267,18 @@ def _2d_plots(x, y, val, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]",
         idx = np.unique(idx)
         return centers[idx]
     
+    # Define the height of the PCB box (3% of the y-axis range)
     pcb_height = abs(y_lim[1] - y_lim[0]) * 0.03
 
     if x_lim is not None:
         ax.set_xlim(x_lim)
-        ax.set_xticks([x_lim[0],*centers_to_ticks(x_unique, max_ticks=10), x_lim[1]])
+        ax.set_xticks(centers_to_ticks(x_unique, max_ticks=max_xticks))
     if y_lim is not None:
         y_lim_wPCB = (y_lim[0]-pcb_height, y_lim[1])
         ax.set_ylim(y_lim_wPCB)
-        ax.set_yticks([y_lim[0],*centers_to_ticks(y_unique, max_ticks=10), y_lim[1]])
+        ax.set_yticks(centers_to_ticks(y_unique, max_ticks=max_yticks))
 
-    # Red box above the plot area, spanning x_lim, from y_lim[1] up by 10% of the y range
+    # Green box representing the cold PCB with label
     if x_lim is not None and y_lim is not None:
         box = patches.Rectangle(
             (x_lim[0], y_lim[0]-pcb_height),  # bottom left corner
@@ -292,11 +294,9 @@ def _2d_plots(x, y, val, title="Scan Metrics", xlabel="X [mm]", ylabel="Y [mm]",
             clip_on=False
         )
 
-    plt.show()
-
     return fig, ax
 
-def _extract_integral_data(scan_summary):
+def _extract_metric_data(scan_summary, metric_name):
     """
     Extract LT_x, LT_y, and summed metric (indices 0-5 of mean_integrals)
     for each scan point in scan_summary.
@@ -316,25 +316,53 @@ def _extract_integral_data(scan_summary):
     val_list = []
 
     for i in range(n_points):
-        pt = scan_summary[f"scan_pt_{i}"]
+        scan_pt = scan_summary[f"scan_pt_{i}"]
 
-        x_list.append(pt["LT_x"])
-        y_list.append(pt["LT_y"])
+        x_list.append(scan_pt["LT_x"])
+        y_list.append(scan_pt["LT_y"])
 
-        mean_integrals = pt["metrics"]["mean_integrals"]["0"]
-        total = sum(mean_integrals[str(n)] for n in range(6))
-        val_list.append(total)
+        val_list.append([scan_pt["metrics"][metric_name][str(ADC)][str(chan)] for chan in CHANS])
 
     return np.array(x_list), np.array(y_list), np.array(val_list)
-    
-def _plot_and_save(summary_file, output=None, verbose=False):
+
+def _get_sumIntegrals(scan_summary):
     """
-    Plot the calculated metrics and save the results to files.
+    Compute the sum of integrals for each scan point in scan_summary.
+
+    Args:
+        scan_summary (dict): dict with keys "N_scan_points", "scan_pt_0", "scan_pt_1", ...
+
+    Returns:
+        sumIntegrals (np.ndarray): summed metric per scan point
+    """
+    x_coords, y_coords, Integrals = _extract_metric_data(scan_summary, "mean_integrals")
+
+    return x_coords, y_coords, np.sum(Integrals, axis=1)  # Sum over the channels (axis=1)
+
+def _get_singleChanIntegrals(scan_summary, chan):
+    """
+    Get the integrals for a single channel for each scan point in scan_summary.
+
+    Args:
+        scan_summary (dict): dict with keys "N_scan_points", "scan_pt_0", "scan_pt_1", ...
+        chan (int): The channel number to extract integrals for.
+
+    Returns:
+        x (np.ndarray): LT_x positions
+        y (np.ndarray): LT_y positions
+        val (np.ndarray): integrals for the specified channel per scan point
+    """
+    x_coords, y_coords, Integrals = _extract_metric_data(scan_summary, "mean_integrals")
+
+    return x_coords, y_coords, Integrals[:, chan]  # Return only the specified channel's integrals
+    
+def _plot_and_save(summary_file, output=None, show_plots=False):
+    """
+    Plot the calculated metrics and save the results as plot(s).
     
     Args:
         summary_file (str): The path to the summary JSON file containing the metrics.
         output (str): The path to the output folder for the plot (default: Same folder as summary file).
-        verbose (bool): Whether to print verbose output.
     """
     # Read the summary file and extract the scan info and metrics
     print(f"Plotting results from summary file: {summary_file}")
@@ -349,64 +377,130 @@ def _plot_and_save(summary_file, output=None, verbose=False):
     x_lim = (min(start_point[0], end_point[0]), max(start_point[0], end_point[0]))
     y_lim = (min(start_point[1], end_point[1]), max(start_point[1], end_point[1]))
 
-    integrals_val_plot = _extract_integral_data(scan_summary)
+    def get_output_filename(suffix):
+        """
+        Generate the output filename for the plot.
+
+        Args:
+            suffix (str): The suffix to add to the filename instead of 'summary'.
+
+        Returns:
+            str: The generated output filename.
+        """
+        if output:
+            return os.path.join(output, os.path.basename(summary_file).replace("_summary.json", f"_{suffix}.png"))
+        else:
+            return summary_file.replace("_summary.json", f"_{suffix}.png")
     
-    fig, axes = _2d_plots(*integrals_val_plot, x_lim=x_lim, y_lim=y_lim,title=f"{scan_name} - Sum of Integrals", xlabel='X Position [mm]', ylabel='Y Position [mm]', colorbar_label='Sum of Integrals [ADC unit]', verbose=verbose)
+    #---------------------------------------------------------------------
+    # Sum of integrals over the channel plot
+    #---------------------------------------------------------------------
 
-    if output:
-        figure_filename = os.path.join(output, os.path.basename(summary_file).replace("_summary.json", "_sumIntegrals_plot.png"))
-    else:
-        figure_filename = summary_file.replace("_summary.json", "_sumIntegrals_plot.png")
+    # Extract the data 
+    sumIntegrals_val_plot = _get_sumIntegrals(scan_summary)
+    
+    # Make the plot
+    fig_sumIntegrals, _ = _2d_plots(*sumIntegrals_val_plot, x_lim=x_lim, y_lim=y_lim,title=f"{scan_name} - Sum of Integrals", xlabel='X Position [mm]', ylabel='Y Position [mm]', colorbar_label=r'Sum of Integrals [$10^6$ ADC unit]', z_scale=1e-6)
 
-    fig.savefig(figure_filename)
-    print(f"Plot saved to: {figure_filename}")
+    # Save the plot
+    sumIntegrals_plot_filename = get_output_filename("sumIntegrals_plot")
+    fig_sumIntegrals.savefig(sumIntegrals_plot_filename, dpi=300)
+    print(f"Sum integrals plot saved to: {sumIntegrals_plot_filename}")
+
+    #---------------------------------------------------------------------
+    # Integrals of individual channel plots
+    #---------------------------------------------------------------------
+
+    figs_singleChanIntegrals = {}
+    for chan in CHANS:
+        # Extract the data
+        chanIntegrals_val_plot = _get_singleChanIntegrals(scan_summary, chan=chan)
+
+        # Make the plot for the single channel integrals
+        figs_singleChanIntegrals[chan] = _2d_plots(*chanIntegrals_val_plot, x_lim=x_lim, y_lim=y_lim,title=f"{scan_name} - Channel {chan} Integrals", xlabel='X Position [mm]', ylabel='Y Position [mm]', colorbar_label=r'Channel {chan} Integrals [$10^6$ ADC unit]', z_scale=1e-6)[0]  # Only keep the figure object
+
+        # Save the channel 4 integrals plot
+        chanIntegrals_plot_filename = get_output_filename(f"chan{chan}Integrals_plot")
+        figs_singleChanIntegrals[chan].savefig(chanIntegrals_plot_filename, dpi=300)
+        print(f"Channel {chan} integrals plot saved to: {chanIntegrals_plot_filename}")
+
+    if show_plots:
+        plt.show()  
+
+    # Free the memory used by the figure(s)
+    plt.close()
 
 def main():
+    """
+    Main function to process the scanner data and plot the results.
+
+    Usage:
+        python data_processing.py [-v | -vv] [-o OUTPUT_FOLDER] [--plot-only] SUMMARY_FILE
+    """
     parser = argparse.ArgumentParser(description='Process the scanner data from a summary file and plot the results.')
 
     # Optional flag: -v / --verbose
-    parser.add_argument('-v', '--verbose',
-                        action='store_true',       # True if flag is present, False otherwise
-                        help='Enable verbose output')
+    parser.add_argument(
+        "-v", 
+        "--verbose", 
+        action="count", 
+        default=0,
+        help="Increase verbosity: -v for detailed flow files summaries, -vv for additionally printing debug information"
+    )
     
     # Optional flag: -o / --output
     parser.add_argument('-o', '--output',
                         type=str,
-                        help='Path to the output folder for the plot (default: Same folder as summary file)')
+                        help='Path to the output folder for the plot(s) (default: Same folder as summary file)')
 
     # Positional argument: required file path
     parser.add_argument('file_path',
                         type=str,
-                        help='Path to the JSON summary file')
+                        help='Path to the scan JSON summary file')
+    
+    # Add the --plot-only flag
+    parser.add_argument(
+        "--plot-only", 
+        action="store_true", 
+        help="Skip data processing and run only the plotting step"
+    )
 
     args = parser.parse_args()
 
     # Use the arguments
-    if args.verbose:
-        print(f"Verbose mode on. Processing: {args.file_path}")
-    else:
-        print(f"Processing: {args.file_path}")
-
     summary_file_path = args.file_path
+    if not os.path.isfile(summary_file_path):
+        print(f"File does not exist or is not a file: {summary_file_path}")
+        sys.exit(1)
+
+    
 
     if args.output:
         if not os.path.isdir(args.output):
             print(f"Output path is not a valid directory: {args.output}")
             sys.exit(1)
-    
-    # #DEBUG
-    # summary_file_path = "/Users/nsallin/develop/scanner/data/scanner_summary/20260522_1811_4-09_summary.json"  
-    if not os.path.isfile(summary_file_path):
-        print(f"File does not exist or is not a file: {summary_file_path}")
-        sys.exit(1)
 
+    if args.verbose == 0:
+        print(f"Processing file {summary_file_path}")
+    elif args.verbose == 1:
+        print(f"Processing file {summary_file_path} with detailed summaries")
+    elif args.verbose >= 2:
+        print(f"Processing file {summary_file_path} with detailed summaries and debug information")
+
+
+    
     # Process the summary file
-    # _data_process(summary_file_path, verbose=args.verbose)
-    
-    print("File updated successfully.")
+    show_plots = False
+    if not args.plot_only:
+        _data_process(summary_file_path, verbose=args.verbose)
+    else:
+        print("Skipping data processing phase. Running only the plotting phase.")
+        if args.verbose > 0:
+            show_plots = True
+            print("Verbose mode is ON: Plots will be displayed interactively.")
 
-    # # Plot and store the results
-    _plot_and_save(summary_file_path, output=args.output, verbose=args.verbose)
+    # Plot and store the results
+    _plot_and_save(summary_file_path, output=args.output, show_plots=show_plots)
 
 if __name__ == "__main__":
     main()
