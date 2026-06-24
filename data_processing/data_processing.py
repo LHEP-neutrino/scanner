@@ -302,14 +302,15 @@ def _extract_metric_data(scan_summary, metric_name):
     for each scan point in scan_summary.
 
     Args:
-        scan_summary (dict): dict with keys "N_scan_points", "scan_pt_0", "scan_pt_1", ...
+        scan_summary (dict): Scan data, containing position and metric information.
+        metric_name (str): The name of the metric to extract.
 
     Returns:
         x (np.ndarray): LT_x positions
         y (np.ndarray): LT_y positions
         val (np.ndarray): summed metric per scan point
     """
-    n_points = scan_summary["N_scan_points"]
+    n_points = np.prod(scan_summary["N_steps"])
 
     x_list = []
     y_list = []
@@ -330,21 +331,21 @@ def _get_sumIntegrals(scan_summary):
     Compute the sum of integrals for each scan point in scan_summary.
 
     Args:
-        scan_summary (dict): dict with keys "N_scan_points", "scan_pt_0", "scan_pt_1", ...
+        scan_summary (dict): Scan data, containing position and metric information.
 
     Returns:
         sumIntegrals (np.ndarray): summed metric per scan point
     """
     x_coords, y_coords, Integrals = _extract_metric_data(scan_summary, "mean_integrals")
 
-    return x_coords, y_coords, np.sum(Integrals, axis=1)  # Sum over the channels (axis=1)
+    return x_coords, y_coords, np.sum(Integrals[:, :6], axis=1)  # Sum over the channels (axis=1)
 
 def _get_singleChanIntegrals(scan_summary, chan):
     """
     Get the integrals for a single channel for each scan point in scan_summary.
 
     Args:
-        scan_summary (dict): dict with keys "N_scan_points", "scan_pt_0", "scan_pt_1", ...
+        scan_summary (dict): Scan data, containing position and metric information.
         chan (int): The channel number to extract integrals for.
 
     Returns:
@@ -417,7 +418,7 @@ def _plot_and_save(summary_file, output=None, show_plots=False):
         chanIntegrals_val_plot = _get_singleChanIntegrals(scan_summary, chan=chan)
 
         # Make the plot for the single channel integrals
-        figs_singleChanIntegrals[chan] = _2d_plots(*chanIntegrals_val_plot, x_lim=x_lim, y_lim=y_lim,title=f"{scan_name} - Channel {chan} Integrals", xlabel='X Position [mm]', ylabel='Y Position [mm]', colorbar_label=r'Channel {chan} Integrals [$10^6$ ADC unit]', z_scale=1e-6)[0]  # Only keep the figure object
+        figs_singleChanIntegrals[chan] = _2d_plots(*chanIntegrals_val_plot, x_lim=x_lim, y_lim=y_lim,title=f"{scan_name} - Channel {chan} Integrals", xlabel='X Position [mm]', ylabel='Y Position [mm]', colorbar_label=rf'Channel {chan} Integrals [$10^6$ ADC unit]', z_scale=1e-6)[0]  # Only keep the figure object
 
         # Save the channel 4 integrals plot
         chanIntegrals_plot_filename = get_output_filename(f"chan{chan}Integrals_plot")
