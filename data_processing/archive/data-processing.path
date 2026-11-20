@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch for new summary JSON files in /data
+
+[Path]
+PathModified=/data/
+PathExistsGlob=/data/*_summary.json
+Unit=data-processing.service
+TriggerLimitIntervalSec=1s
+TriggerLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target

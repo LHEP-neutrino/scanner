@@ -1,1 +1,6 @@
 *__pycache__*
+*venv*
+*.egg-info*
+*scanctrl/log*
+*tmp/*
+*scanctrl/config/*

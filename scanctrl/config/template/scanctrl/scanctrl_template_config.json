@@ -1,0 +1,94 @@
+{
+    "printer": {
+        "usb_port": "/dev/ttyUSB1",
+        "baudrate": 115200,
+        "initial_position": [360, 360, 45]
+    },
+    "arduino": {
+        "port": "/dev/ttyUSB0",
+        "baudrate": 9600,
+        "ntc_sensor": {
+            "beta": 3380.0,
+            "R0": 10000,
+            "T0": 25
+        }
+
+    },
+    "scan": {
+        "data_folder": "/mnt/storage/data/scanner",
+        "scan_params": {
+            "start_pos": [0, 0],
+            "end_pos": [296, 461],
+            "N_steps": [2, 5],
+            "z_scan_height": 30,
+            "coord_transform": {
+                "IN": {
+                    "LT_coords": [[0, 5], [296, 305]],
+                    "printer_coords": [[47, 60], [344, 360]]
+                },
+                "OUT": {
+                    "LT_coords": [[0, 161], [296, 461]],
+                    "printer_coords": [[47, 60], [344, 354]]
+                }
+            }
+        }
+    },
+    "pulser": {
+        "host" : "130.92.128.165",
+        "username" : "pi",
+        "password_env_var" : "SSH_PASSWORD",
+        "config_file": "path/to/scanctrl/config/ppulse/ppulse_config.json",
+        "config_folder_remote": "/home/pi/ppulse_config/tmp",
+        "period": 10,
+        "duration": 30
+    },
+    "pulser_alt": {
+        "host" : "130.92.128.165",
+        "username" : "pi",
+        "password_env_var" : "SSH_PASSWORD",
+        "s_params": [50, 0],
+        "p_params": [0, 25],
+        "channels": [1, 2],
+        "period": 10,
+        "duration": 30
+    },
+    "supplr": {
+        "host": "130.92.128.188",
+        "username": "pi",
+        "password_env_var" : "SSH_PASSWORD",
+        "default_config_file_remote" : "/home/pi/configs/supplr_configs/default/default_1V.csv",
+        "default_voltage" : 1,
+        "tmp_config_folder": "/path/to/project/config/tmp/supplr",
+        "tmp_config_folder_remote": "/home/pi/configs/supplr_configs/tmp/",
+        "board": 15,
+        "channels": [1,2,3,4,5,6,7],
+        "bias_voltages": 56.0
+    },
+    "supplr_alt1": {
+        "host": "130.92.128.188",
+        "username": "pi",
+        "password_env_var" : "SSH_PASSWORD",
+        "default_config_file_remote" : "/home/pi/configs/supplr_configs/default/default_1V.csv",
+        "default_voltage" : 1,
+        "tmp_config_folder": "/path/to/project/config/tmp/supplr",
+        "tmp_config_folder_remote": "/home/pi/configs/supplr_configs/tmp/",
+        "board": 15,
+        "channels": [1,2,3,4],
+        "bias_voltages": [56.0, 55.9, 56.3, 57.1]
+    },
+    "supplr_alt2": {
+        "host": "130.92.128.188",
+        "username": "pi",
+        "password_env_var" : "SSH_PASSWORD",
+        "default_config_file_remote" : "/home/pi/configs/supplr_configs/default/default_1V.csv",
+        "default_voltage" : 1,
+        "tmp_config_folder": "/path/to/project/config/tmp/supplr",
+        "tmp_config_folder_remote": "/home/pi/configs/supplr_configs/tmp/",
+        "board": 15,
+        "config_file" : "path/to/project/scanctrl/config/supplr/supplr_config.csv"
+    },
+    "logging": {
+        "log_level": "INFO",
+        "console_verbose": "INFO"
+    }
+}
